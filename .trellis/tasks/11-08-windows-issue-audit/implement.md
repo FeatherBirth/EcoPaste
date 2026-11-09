@@ -23,6 +23,11 @@
 13. Review and update concise core memory specs.
 14. Build the NSIS installer, replace the installed app, and verify launch.
 15. Commit on a new `codex/` branch and push to `origin`.
+16. Add the favorite scope setting and normalize All/Favorites/custom-group
+    selection semantics.
+17. Add the short fully-visible text hover setting and DOM overflow check.
+18. Render single-image file records in the preview window and cover the payload
+    decision with tests.
 
 ## Validation
 

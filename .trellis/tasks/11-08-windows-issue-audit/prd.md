@@ -48,6 +48,14 @@ operating system outside the project's supported baseline.
 9. Produce a Windows installer from the current source, replace the existing
    `C:\Program Files\EcoPaste` installation, and verify the installed executable.
 10. Commit all task changes on a new `codex/` branch and push it to `origin`.
+11. Refine clipboard category navigation so `All`, `Favorites`, and custom
+    groups have an explicit scope model. Add a preference allowing Favorites to
+    either open the global Favorites view or filter favorites inside the current
+    custom group.
+12. Add an optional hover-preview behavior that skips text records already fully
+    visible in their list card.
+13. Fix single-image file records so the preview window renders the same image
+    content as the list card instead of a generic file icon.
 
 ## Acceptance Criteria
 
@@ -91,6 +99,15 @@ operating system outside the project's supported baseline.
 - [x] A current-source Windows installer is built and installed over the existing
       `C:\Program Files\EcoPaste` installation.
 - [x] Changes are committed on a new `codex/` branch and pushed to `origin`.
+- [x] In the default global-Favorites mode, All, Favorites, and custom groups are
+      mutually exclusive, while content-type filters remain applicable.
+- [x] In in-group Favorites mode, Favorites filters the active All or custom
+      group without changing the selected scope.
+- [x] Hover preview can skip plain text whose complete content already fits in
+      its list card; Space preview remains available.
+- [x] A files record containing one existing image file renders an image in the
+      preview window.
+- [x] New settings default safely for existing settings files without migration.
 
 ## Validation Notes
 
@@ -109,6 +126,13 @@ operating system outside the project's supported baseline.
   until the elevation prompt is accepted.
 - Branch `codex/windows-remote-dpi-fixes` was pushed to `origin` with commits
   `0986cbf`, `58fbb9d`, and `7d61377`.
+- Follow-up verification: 191 tests passed with 7 real-clipboard tests ignored;
+  `cargo fmt --check`, Clippy with warnings denied, `pnpm tsc`, Biome, and the
+  production Vite build passed.
+- Desktop automation for the follow-up UI paths was attempted with an isolated
+  test identifier, but Windows app approval timed out twice. Manual UI checks
+  remain required for favorite-mode transitions, short-text hover suppression,
+  and single-JPG file preview.
 
 ## Out of Scope
 
@@ -119,6 +143,8 @@ operating system outside the project's supported baseline.
   OCR, batch paste, or UI redesigns.
 - Bugs that cannot be confirmed from code, logs, or a reproducible local path
   without inventing behavior.
+- Rich image/video thumbnail generation for arbitrary file records. The fix keeps
+  single-image file preview consistent with the existing list behavior.
 
 ## Technical Notes
 

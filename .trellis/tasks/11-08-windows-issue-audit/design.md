@@ -109,6 +109,40 @@ after hiding. `DestroyWhenIdle` remains for preference and preview windows only.
 This trades a small amount of idle memory for predictable right-click latency,
 especially after long idle or Remote Desktop reconnection.
 
+## Clipboard Filter Scope
+
+- `clipboardViewState` continues to store `range`, `category`, and `groupId`, but
+  their relationship is governed by `clipboard.window.favoriteScope`.
+- `global` is the default: `favorite` is a top-level scope alongside `All` and
+  one custom group. Selecting Favorites clears the custom group; selecting a
+  custom group or All clears the favorite range.
+- `withinGroup`: All and custom groups remain mutually exclusive scopes, while
+  the favorite range applies as an additional filter inside the active scope.
+- Content type remains an independent single-value filter inside every scope.
+- Window-open selections are normalized so a global Favorites selection cannot
+  retain a custom group.
+
+## Short Text Hover Preview
+
+- Add `clipboard.preview.skip_fully_visible_text_on_hover`, default `false`.
+- The setting applies only to hover previews. Space remains an explicit request
+  for the preview window.
+- Only plain text records are eligible. Rich text records retain the existing
+  behavior.
+- The clipboard card marks the line-clamped text element. Before opening a hover
+  preview, React checks whether that element has vertical overflow; fully visible
+  text is skipped without IPC.
+
+## Single-Image File Preview
+
+- Files records do not share the `image` clipboard kind. A single existing image
+  file is rendered as an image by the list card, so the preview payload now marks
+  that same case as image-renderable.
+- The preview continues to use the original file path and existing asset protocol;
+  it does not copy or convert the file.
+- Multi-file records, non-image files, missing files, and video files continue to
+  use the file-list view.
+
 ## Local Installation
 
 - Build an NSIS installer from the current tree.

@@ -12,7 +12,7 @@
   "assignee": "codex",
   "createdAt": "2026-11-08",
   "completedAt": null,
-  "branch": "codex/windows-remote-dpi-fixes",
+  "branch": "codex/clipboard-filter-preview-refinements",
   "base_branch": "master",
   "worktree_path": null,
   "commit": null,

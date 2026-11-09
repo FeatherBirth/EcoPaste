@@ -89,6 +89,83 @@ Correct:
 { "clipboard": { "window": { "selectGroupOnOpen": "group:550e8400-e29b" } } }
 ```
 
+### Clipboard Filter Scope and Hover Text Settings
+
+#### 1. Scope / Trigger
+
+Changing how `All`, `Favorites`, custom groups, content types, or hover previews
+combine requires synchronized Rust settings, the TypeScript mirror, preference
+schema, and transient clipboard view state.
+
+#### 2. Signatures
+
+- Rust fields:
+  - `Clipboard.window.favorite_scope: FavoriteScope`
+  - `Clipboard.preview.skip_fully_visible_text_on_hover: bool`
+- TypeScript mirrors:
+  - `Window.favoriteScope: "global" | "withinGroup"`
+  - `Preview.skipFullyVisibleTextOnHover: boolean`
+- View state remains `range`, `category`, and `groupId`; do not add duplicate
+  derived fields that can drift.
+
+#### 3. Contracts
+
+- `favoriteScope = "global"` is the default. `All`, `Favorites`, and a custom
+  group are mutually exclusive scopes.
+- `favoriteScope = "withinGroup"` keeps `All` and custom groups mutually
+  exclusive while applying Favorites as an additional filter in the active
+  scope.
+- Content type (`text`, `image`, `files`, or none) is always an independent
+  filter within the active scope.
+- Window-open selections are normalized after application so global Favorites
+  cannot retain a custom group.
+- `skipFullyVisibleTextOnHover` defaults to `false` and affects hover only.
+  Space preview remains an explicit request. Rich text (`html` / `rtf`) is not
+  skipped.
+
+#### 4. Validation & Error Matrix
+
+- Missing settings fields -> Rust defaults (`global`, `false`); no migration is
+  required.
+- Invalid enum string -> serde deserialization error.
+- Global Favorites with a custom group -> frontend clears `groupId`.
+- Short preview enabled but card text overflows or summary was truncated ->
+  preview still opens.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: global Favorites shows every favorite and clears the selected group.
+- Good: within-group Favorites shows favorite images only in the active group.
+- Good: a fully visible plain-text card does not open hover preview after the
+  user enables the switch.
+- Base: the switch is off, preserving previous hover behavior.
+- Bad: inferring text truncation only from a byte/character threshold; wrapped
+  text or the configured line clamp can still hide content.
+
+#### 6. Tests Required
+
+- Rust settings default test asserts `FavoriteScope::Global` and
+  `skip_fully_visible_text_on_hover = false`.
+- `pnpm tsc` covers both TypeScript mirrors and preference paths.
+- Manual UI verifies both favorite modes, type filters inside each scope,
+  short/long text hover behavior, and Space preview for short text.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```tsx
+clipboardViewState.range = "favorite";
+// custom group remains selected in global mode
+```
+
+Correct:
+
+```tsx
+clipboardViewState.range = "favorite";
+if (favoriteScope === "global") clipboardViewState.groupId = null;
+```
+
 ## Settings Events and Mirrors
 
 Rust is the source of truth. `commands::settings::update_settings` and

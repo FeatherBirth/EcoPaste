@@ -166,6 +166,24 @@ Source app IDs are platform-specific:
 
 The command layer resolves icon file names into absolute paths for React.
 
+### Single-Image File Preview
+
+Explorer / Finder file copies are `ClipboardKind::Files`, not
+`ClipboardKind::Image`, even when the selected path ends in `.jpg` or `.png`.
+The list already renders a single existing image file as an image card.
+
+`ClipboardPreviewPayload.single_image_preview` mirrors that decision:
+
+- `Files` + exactly one entry + `is_image=true` + `exists=true` -> render the
+  original path with `AssetImage` inside the preview.
+- Missing files, non-image files, videos, and multi-file selections remain in
+  the file-list viewer.
+- The preview must reuse the same `is_image_path` classification as the list;
+  do not add a separate extension list in React.
+
+Regression tests assert that an existing single image path is returned for image
+preview, while missing images and non-image/video files return no image preview.
+
 ## Tests
 
 Clipboard logic has focused Rust tests for pure parsing, ingestion, storage,

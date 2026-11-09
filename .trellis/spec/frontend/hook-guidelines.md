@@ -86,3 +86,14 @@ Before adding a hook or effect:
   `useUnmount`, or a tightly scoped `useEffect` cleanup.
 - Does the callback need current state inside a long-lived listener? Use a ref.
 - Does it fetch business data? Prefer a command wrapper and keep results local.
+
+## Clipboard Hover Preview Visibility
+
+When deciding whether a text card is already fully visible, measure the rendered
+line-clamped element (`scrollHeight <= clientHeight + 1`) after hover-state layout
+has settled. `TextCard` owns the `data-preview-text-content` marker.
+
+Also reject the fast path when `ClipboardItem.size` indicates that the stored
+plain text is larger than `summary`; the card may be showing only the capped
+summary even if that summary currently fits. Do not skip HTML/RTF previews or
+Space-triggered previews.
