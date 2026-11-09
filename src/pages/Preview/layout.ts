@@ -38,6 +38,10 @@ export function resolveEffectivePanelSize(
     return resolveTextPanelSize(layout, payload.text ?? "");
   }
 
+  if (payload.singleImagePreview) {
+    return measuredSize;
+  }
+
   if (payload.kind === "files") {
     return resolveFilesPanelSize(
       layout,

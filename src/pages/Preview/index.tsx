@@ -219,7 +219,7 @@ function shouldRenderMeasuredContent(
 ) {
   if (!payload) return true;
 
-  return payload.kind === "image";
+  return payload.kind === "image" || payload.singleImagePreview;
 }
 
 export default Preview;

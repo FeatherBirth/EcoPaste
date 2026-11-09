@@ -65,6 +65,8 @@ export type WindowOpenGroupSelection = "preserve" | "all" | `group:${string}`;
 
 export type PreviewHoverDelayMs = "ms300" | "ms500" | "ms1000";
 
+export type FavoriteScope = "global" | "withinGroup";
+
 export type UpdateFrequency = "daily" | "weekly" | "monthly";
 
 export type OnboardingLegacyImportType = "normal" | "favorite";
@@ -148,6 +150,7 @@ export interface Search {
 
 export interface Window {
   position: WindowPosition;
+  favoriteScope: FavoriteScope;
   scrollToTopOnOpen: boolean;
   selectRangeOnOpen: WindowOpenRangeSelection;
   selectCategoryOnOpen: WindowOpenCategorySelection;
@@ -159,6 +162,7 @@ export interface Window {
 export interface Preview {
   hoverEnabled: boolean;
   hoverDelayMs: PreviewHoverDelayMs;
+  skipFullyVisibleTextOnHover: boolean;
   spaceEnabled: boolean;
 }
 

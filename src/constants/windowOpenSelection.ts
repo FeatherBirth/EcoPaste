@@ -5,12 +5,13 @@ import type {
 
 export const WINDOW_OPEN_SELECTION_PRESERVE = "preserve";
 export const WINDOW_OPEN_SELECTION_ALL = "all";
+export const WINDOW_OPEN_SELECTION_FAVORITE = "favorite";
 export const WINDOW_OPEN_GROUP_PREFIX = "group:";
 
 export const WINDOW_OPEN_RANGE_OPTIONS = [
   { value: WINDOW_OPEN_SELECTION_PRESERVE },
   { value: WINDOW_OPEN_SELECTION_ALL },
-  { value: "favorite" },
+  { value: WINDOW_OPEN_SELECTION_FAVORITE },
 ] satisfies Array<{ value: WindowOpenRangeSelection }>;
 
 export const WINDOW_OPEN_CATEGORY_OPTIONS = [

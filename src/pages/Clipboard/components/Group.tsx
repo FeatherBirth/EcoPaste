@@ -26,6 +26,7 @@ import { TAURI_EVENT } from "@/constants/events";
 import { useKeyboardEvent } from "@/hooks/useKeyboardEvent";
 import { useTauriListen } from "@/hooks/useTauriListen";
 import { clipboardViewState } from "@/stores/clipboardView";
+import { settingsState } from "@/stores/settings";
 import type {
   ClipboardCategory,
   ClipboardGroupIcon as ClipboardGroupIconValue,
@@ -109,6 +110,8 @@ const GROUP_SEPARATOR_MARGIN = 4;
 const Group: FC = () => {
   const { t } = useTranslation(["clipboard", "common"]);
   const { category, groupId, range } = useSnapshot(clipboardViewState);
+  const settings = useSnapshot(settingsState);
+  const favoriteScope = settings.clipboard.window.favoriteScope;
 
   const [customGroups, setCustomGroups] = useState<ClipboardGroupRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -196,10 +199,38 @@ const Group: FC = () => {
   }, [visibleCustomGroups.length]);
 
   /**
-   * 切换范围；范围必须始终保留一个选中项。
+   * 全局收藏模式不允许收藏范围与自定义分组同时存在。
    */
-  const selectRange = (value: ClipboardRange) => {
-    clipboardViewState.range = value;
+  useEffect(() => {
+    if (
+      favoriteScope === "global" &&
+      range === "favorite" &&
+      groupId !== null
+    ) {
+      clipboardViewState.groupId = null;
+    }
+  }, [favoriteScope, groupId, range]);
+
+  /**
+   * 切回全局范围，并按收藏模式决定是否同时清除收藏筛选。
+   */
+  const selectAllScope = () => {
+    clipboardViewState.groupId = null;
+
+    if (favoriteScope === "global") {
+      clipboardViewState.range = "all";
+    }
+  };
+
+  /**
+   * 选择收藏范围；全局模式下收藏与其他分组互斥。
+   */
+  const selectFavoriteScope = () => {
+    clipboardViewState.range = "favorite";
+
+    if (favoriteScope === "global") {
+      clipboardViewState.groupId = null;
+    }
   };
 
   /**
@@ -215,6 +246,10 @@ const Group: FC = () => {
    */
   const toggleCustomGroup = (id: string) => {
     clipboardViewState.groupId = clipboardViewState.groupId === id ? null : id;
+
+    if (favoriteScope === "global") {
+      clipboardViewState.range = "all";
+    }
   };
 
   /**
@@ -230,8 +265,13 @@ const Group: FC = () => {
       return;
     }
 
-    if (type === "range" && isRangeGroup(value)) {
-      selectRange(value);
+    if (type === "range" && value === "all") {
+      selectAllScope();
+      return;
+    }
+
+    if (type === "range" && value === "favorite") {
+      selectFavoriteScope();
       return;
     }
 
@@ -296,11 +336,19 @@ const Group: FC = () => {
   useKeyboardEvent("keydown", handleKeyDown);
 
   /**
-   * 在全部 / 收藏范围之间循环切换，不影响分类与自定义分组筛选。
+   * 在全部 / 收藏范围之间循环切换；全局收藏模式下会退出当前分组。
    */
   const toggleRange = () => {
-    clipboardViewState.range =
-      clipboardViewState.range === "all" ? "favorite" : "all";
+    if (clipboardViewState.range === "all") {
+      selectFavoriteScope();
+      return;
+    }
+
+    clipboardViewState.range = "all";
+
+    if (favoriteScope === "global") {
+      clipboardViewState.groupId = null;
+    }
   };
 
   /**
@@ -554,7 +602,11 @@ const Group: FC = () => {
    * 渲染范围按钮。
    */
   const renderRangeButton = ({ labelKey, value, icon }: RangeGroupOption) => {
-    const selected = range === value;
+    const selected =
+      value === "all"
+        ? groupId === null &&
+          (favoriteScope === "withinGroup" || range === "all")
+        : range === value;
     const nextRange =
       range === "all" ? "favorite" : range === "favorite" ? "all" : void 0;
     const showShortcutHint = nextRange === value;
@@ -936,15 +988,6 @@ function parseMoreMenuGroupId(key: string) {
   if (!key.startsWith("group:")) return null;
 
   return key.slice("group:".length);
-}
-
-/**
- * 判断字符串是否为范围分组值。
- */
-function isRangeGroup(value: unknown): value is ClipboardRange {
-  return RANGE_GROUP_OPTIONS.some((option) => {
-    return option.value === value;
-  });
 }
 
 /**

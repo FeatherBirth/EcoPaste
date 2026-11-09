@@ -179,29 +179,18 @@ export function useClipboardPreviewController(
     }
     if (!previewSettings.hoverEnabled) return;
 
-    cancelHoverPreview();
-    cancelHoverHide();
-    pendingHoverTargetRef.current = { item, pointerY };
-
     if (previewSessionRef.current?.trigger === "hover") {
       if (previewSessionRef.current.itemId === item.id) return;
 
-      void openPreviewForItem(item, "hover", pointerY);
+      scheduleHoverPreviewOpen(item, pointerY, 0);
       return;
     }
 
-    hoverTimerRef.current = window.setTimeout(() => {
-      hoverTimerRef.current = null;
-
-      if (!clipboardWindowVisibleRef.current) return;
-      if (!settingsState.clipboard.preview.hoverEnabled) return;
-
-      const target = pendingHoverTargetRef.current;
-
-      if (!target || target.item.id !== item.id) return;
-
-      void openPreviewForItem(target.item, "hover", target.pointerY);
-    }, HOVER_DELAY_MS[previewSettings.hoverDelayMs]);
+    scheduleHoverPreviewOpen(
+      item,
+      pointerY,
+      HOVER_DELAY_MS[previewSettings.hoverDelayMs],
+    );
   };
 
   /**
@@ -329,6 +318,62 @@ export function useClipboardPreviewController(
     clearHoverTimer(hoverTimerRef);
     pendingHoverTargetRef.current = null;
   };
+
+  /**
+   * 等待卡片完成 hover 布局后，再判断是否需要显示悬停预览。
+   */
+  function scheduleHoverPreviewOpen(
+    item: ClipboardItem,
+    pointerY: number,
+    delay: number,
+  ) {
+    cancelHoverPreview();
+    cancelHoverHide();
+    pendingHoverTargetRef.current = { item, pointerY };
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      hoverTimerRef.current = null;
+
+      if (!clipboardWindowVisibleRef.current) return;
+      if (!settingsState.clipboard.preview.hoverEnabled) return;
+
+      const target = pendingHoverTargetRef.current;
+      pendingHoverTargetRef.current = null;
+
+      if (!target || target.item.id !== item.id) return;
+
+      if (shouldSkipHoverPreview(target.item)) {
+        if (previewSessionRef.current?.trigger === "hover") {
+          closePreview("fullyVisibleText");
+        }
+        return;
+      }
+
+      void openPreviewForItem(target.item, "hover", target.pointerY);
+    }, delay);
+  }
+
+  /**
+   * 判断纯文本是否已经在列表中完整显示，避免重复弹出相同内容。
+   */
+  function shouldSkipHoverPreview(item: ClipboardItem) {
+    if (!settingsState.clipboard.preview.skipFullyVisibleTextOnHover) {
+      return false;
+    }
+    if (item.kind !== "text") return false;
+    if (item.subKind === "html" || item.subKind === "rtf") return false;
+
+    const summaryBytes = new TextEncoder().encode(item.summary ?? "").length;
+    if ((item.size ?? 0) > summaryBytes) return false;
+
+    const root = itemElementMapRef.current.get(item.id);
+    const content = root?.querySelector<HTMLElement>(
+      "[data-preview-text-content]",
+    );
+    if (!content) return false;
+
+    return content.scrollHeight <= content.clientHeight + 1;
+  }
 
   /**
    * 滚动列表时关闭 hover preview，保留 keyboard preview。

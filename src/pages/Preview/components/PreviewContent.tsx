@@ -167,10 +167,10 @@ const ImageViewer: FC<PayloadViewerProps> = (props) => {
   }
 
   return (
-    <div className="flex h-full min-h-0 items-center justify-center p-4">
+    <div className="flex min-h-24 items-center justify-center p-4">
       <AssetImage
         alt={t("image.alt")}
-        className="h-auto max-h-full max-w-full object-contain"
+        className="block h-auto max-h-100 max-w-full object-contain"
         draggable={false}
         height={imageHeight}
         src={payload.imagePath}
@@ -186,6 +186,10 @@ const ImageViewer: FC<PayloadViewerProps> = (props) => {
 const FilesViewer: FC<PayloadViewerProps> = (props) => {
   const { payload } = props;
   const { t } = useTranslation("preview");
+
+  if (payload.singleImagePreview && payload.imagePath && payload.imageExists) {
+    return <ImageViewer payload={payload} />;
+  }
 
   if (payload.files.length === 0) {
     return (

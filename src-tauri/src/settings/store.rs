@@ -333,7 +333,12 @@ mod tests {
         assert!(parsed.clipboard.content.delete_pinned_confirm);
         assert!(!parsed.clipboard.content.update_on_reuse);
         assert_eq!(parsed.clipboard.history.cleanup_interval_hours, 0);
+        assert!(!parsed.clipboard.preview.skip_fully_visible_text_on_hover);
         assert!(parsed.clipboard.window.scroll_to_top_on_open);
+        assert_eq!(
+            parsed.clipboard.window.favorite_scope,
+            crate::settings::FavoriteScope::Global
+        );
         assert_eq!(
             parsed.clipboard.window.select_range_on_open,
             crate::settings::WindowOpenRangeSelection::Preserve

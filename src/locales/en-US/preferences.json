@@ -425,6 +425,14 @@
           "controlLabel": "Manage",
           "description": "Adjust custom group order, visibility, names, and icons.",
           "title": "Custom Groups"
+        },
+        "favoriteScope": {
+          "description": "Choose whether Favorites shows every favorite or filters favorites inside the current All or custom group.",
+          "options": {
+            "global": "Show All Favorites",
+            "withinGroup": "Filter Current Scope"
+          },
+          "title": "Favorite Scope"
         }
       },
       "paste": {
@@ -491,6 +499,10 @@
         "hover": {
           "description": "Show a full-content preview when hovering over a record.",
           "title": "Hover Preview"
+        },
+        "skipFullyVisibleText": {
+          "description": "Skip hover previews for plain text that is already fully visible in its list card; longer text still previews.",
+          "title": "Skip Fully Visible Text"
         },
         "space": {
           "description": "Hold Space to preview the currently selected record.",

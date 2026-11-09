@@ -283,6 +283,7 @@ pub struct ClipboardPreviewPayload {
     pub size: Option<i64>,
     pub is_sensitive: bool,
     pub image_exists: bool,
+    pub single_image_preview: bool,
     pub files: Vec<ClipboardPreviewFileEntry>,
     pub total_files: usize,
 }
@@ -880,6 +881,7 @@ async fn build_clipboard_preview_payload(
     let mut text = None;
     let mut image_path = None;
     let mut image_exists = false;
+    let mut single_image_preview = false;
     let mut files = Vec::new();
     let mut total_files = 0;
 
@@ -896,6 +898,9 @@ async fn build_clipboard_preview_payload(
         ClipboardKind::Files => {
             total_files = count_file_paths(&item.content);
             files = build_preview_file_entries(pool, file_icon_store, &item).await?;
+            image_path = single_image_file_preview_path(&files);
+            image_exists = image_path.is_some();
+            single_image_preview = image_path.is_some();
         }
     }
     let preview_sub_kind = preview_sub_kind(&item, redact_sensitive);
@@ -912,9 +917,18 @@ async fn build_clipboard_preview_payload(
         size: item.size,
         is_sensitive: item.is_sensitive,
         image_exists,
+        single_image_preview,
         files,
         total_files,
     })
+}
+
+/// 单张且仍存在的图片文件沿用列表的图片卡片语义，在预览中也直接渲染图片。
+fn single_image_file_preview_path(files: &[ClipboardPreviewFileEntry]) -> Option<String> {
+    match files {
+        [file] if file.is_image && file.exists => Some(file.path.clone()),
+        _ => None,
+    }
 }
 
 /// 解析 files 类型记录中的路径列表，最多返回前 64 项以控制 IPC 与 icon 抽取成本。
@@ -1735,6 +1749,49 @@ mod tests {
         let item = text_item(Some(ClipboardSubKind::Html), false);
 
         assert_eq!(preview_sub_kind(&item, true), Some(ClipboardSubKind::Html));
+    }
+
+    #[test]
+    fn single_existing_image_file_uses_image_preview() {
+        let files = vec![ClipboardPreviewFileEntry {
+            path: r"D:\Pictures\sample.jpg".to_owned(),
+            name: "sample.jpg".to_owned(),
+            is_dir: false,
+            is_image: true,
+            exists: true,
+            size: Some(42),
+            icon_path: None,
+        }];
+
+        assert_eq!(
+            single_image_file_preview_path(&files).as_deref(),
+            Some(r"D:\Pictures\sample.jpg")
+        );
+    }
+
+    #[test]
+    fn missing_or_non_image_file_keeps_file_list_preview() {
+        let missing_image = ClipboardPreviewFileEntry {
+            path: r"D:\Pictures\missing.jpg".to_owned(),
+            name: "missing.jpg".to_owned(),
+            is_dir: false,
+            is_image: true,
+            exists: false,
+            size: None,
+            icon_path: None,
+        };
+        let video = ClipboardPreviewFileEntry {
+            path: r"D:\Videos\sample.mp4".to_owned(),
+            name: "sample.mp4".to_owned(),
+            is_dir: false,
+            is_image: false,
+            exists: true,
+            size: Some(100),
+            icon_path: None,
+        };
+
+        assert_eq!(single_image_file_preview_path(&[missing_image]), None);
+        assert_eq!(single_image_file_preview_path(&[video]), None);
     }
 
     #[test]

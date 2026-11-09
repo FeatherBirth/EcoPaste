@@ -58,6 +58,7 @@ const SETTING_ICON_MAP: Record<string, string> = {
   "permissions.runAsAdministrator": "i-lucide:shield-alert",
   "preview.delay": "i-lucide:timer",
   "preview.hover": "i-lucide:mouse-pointer-2",
+  "preview.skipFullyVisibleText": "i-lucide:scan-text",
   "preview.space": "i-lucide:space",
   "search.clearOnHide": "i-lucide:eraser",
   "search.defaultFocus": "i-lucide:scan-search",

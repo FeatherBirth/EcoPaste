@@ -35,6 +35,7 @@ import { buildItemActionLabels } from "@/constants/itemActions";
 import {
   parseWindowOpenGroupId,
   WINDOW_OPEN_SELECTION_ALL,
+  WINDOW_OPEN_SELECTION_FAVORITE,
   WINDOW_OPEN_SELECTION_PRESERVE,
 } from "@/constants/windowOpenSelection";
 import { WINDOW_LABEL } from "@/constants/windows";
@@ -291,11 +292,15 @@ const List: FC = () => {
     if (!visible) return;
 
     const {
+      favoriteScope,
       scrollToTopOnOpen,
       selectCategoryOnOpen,
       selectGroupOnOpen,
       selectRangeOnOpen,
     } = settings.clipboard.window;
+    const opensGlobalFavorites =
+      favoriteScope === "global" &&
+      selectRangeOnOpen === WINDOW_OPEN_SELECTION_FAVORITE;
     const shouldResetSelection =
       selectRangeOnOpen !== WINDOW_OPEN_SELECTION_PRESERVE ||
       selectCategoryOnOpen !== WINDOW_OPEN_SELECTION_PRESERVE ||
@@ -319,6 +324,17 @@ const List: FC = () => {
       clipboardViewState.groupId = null;
     } else if (openGroupId) {
       clipboardViewState.groupId = openGroupId;
+    }
+
+    if (opensGlobalFavorites) {
+      clipboardViewState.groupId = null;
+    } else if (favoriteScope === "global" && openGroupId) {
+      clipboardViewState.range = "all";
+    } else if (
+      favoriteScope === "global" &&
+      clipboardViewState.range === "favorite"
+    ) {
+      clipboardViewState.groupId = null;
     }
 
     if (!scrollToTopOnOpen) return;

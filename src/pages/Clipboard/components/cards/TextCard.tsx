@@ -65,6 +65,7 @@ const TextCard: FC<TextCardProps> = (props) => {
           "block w-full cursor-pointer whitespace-pre-wrap border-0 bg-transparent p-0 text-left text-ant-primary underline underline-offset-2",
           lineClampClass,
         )}
+        data-preview-text-content
         onClick={handleLinkClick}
         onMouseDown={handleLinkMouseDown}
         type="button"
@@ -75,7 +76,10 @@ const TextCard: FC<TextCardProps> = (props) => {
   }
 
   return (
-    <div className={cn("whitespace-pre-wrap", lineClampClass)}>
+    <div
+      className={cn("whitespace-pre-wrap", lineClampClass)}
+      data-preview-text-content
+    >
       <Highlight keyword={keyword} text={summary ?? ""} />
     </div>
   );

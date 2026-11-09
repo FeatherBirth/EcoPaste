@@ -425,6 +425,14 @@
           "controlLabel": "管理",
           "description": "调整自定义分组的顺序、显示状态、名称和图标。",
           "title": "自定义分组"
+        },
+        "favoriteScope": {
+          "description": "选择点击收藏时显示所有收藏，还是只在当前全部或自定义分组中过滤收藏。",
+          "options": {
+            "global": "显示全部收藏",
+            "withinGroup": "在当前范围内过滤"
+          },
+          "title": "收藏范围"
         }
       },
       "paste": {
@@ -491,6 +499,10 @@
         "hover": {
           "description": "鼠标悬停在记录上时显示完整内容预览。",
           "title": "悬停预览"
+        },
+        "skipFullyVisibleText": {
+          "description": "开启后，列表卡片已经完整显示的纯文本不再弹出悬停预览；较长文本仍会显示。",
+          "title": "短文本不预览"
         },
         "space": {
           "description": "按住空格键时预览当前选中的记录。",

@@ -28,6 +28,7 @@ const CLIPBOARD_SORT_OPTIONS = [
   { value: "updatedAtDesc" },
   { value: "useCountDesc" },
 ];
+const FAVORITE_SCOPE_OPTIONS = [{ value: "global" }, { value: "withinGroup" }];
 export const preferenceTabs: PreferenceTab[] = [
   {
     icon: "i-lucide:clipboard-plus",
@@ -198,6 +199,15 @@ export const preferenceTabs: PreferenceTab[] = [
             path: ["clipboard", "content", "autoFavorite"],
             value: (settings) => {
               return settings.clipboard.content.autoFavorite;
+            },
+          },
+          {
+            control: { options: FAVORITE_SCOPE_OPTIONS, type: "select" },
+            id: "organizing.favoriteScope",
+            keywords: ["favorite", "group", "scope", "category"],
+            path: ["clipboard", "window", "favoriteScope"],
+            value: (settings) => {
+              return settings.clipboard.window.favoriteScope;
             },
           },
         ],
@@ -511,6 +521,19 @@ export const preferenceTabs: PreferenceTab[] = [
             path: ["clipboard", "preview", "hoverDelayMs"],
             value: (settings) => {
               return settings.clipboard.preview.hoverDelayMs;
+            },
+          },
+          {
+            control: { type: "switch" },
+            disabledWhen: (settings) => {
+              return !settings.clipboard.preview.hoverEnabled;
+            },
+            id: "preview.skipFullyVisibleText",
+            keywords: ["preview", "hover", "text", "short"],
+            parentId: "preview.hover",
+            path: ["clipboard", "preview", "skipFullyVisibleTextOnHover"],
+            value: (settings) => {
+              return settings.clipboard.preview.skipFullyVisibleTextOnHover;
             },
           },
           {

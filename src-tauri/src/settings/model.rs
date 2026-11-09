@@ -480,6 +480,8 @@ pub enum ItemAction {
 pub struct Preview {
     pub hover_enabled: bool,
     pub hover_delay_ms: PreviewHoverDelayMs,
+    /// 悬停预览时跳过列表卡片已经完整展示的纯文本。
+    pub skip_fully_visible_text_on_hover: bool,
     pub space_enabled: bool,
 }
 
@@ -488,6 +490,7 @@ impl Default for Preview {
         Self {
             hover_enabled: false,
             hover_delay_ms: PreviewHoverDelayMs::Ms500,
+            skip_fully_visible_text_on_hover: false,
             space_enabled: true,
         }
     }
@@ -562,6 +565,8 @@ impl Default for Search {
 #[serde(default, rename_all = "camelCase")]
 pub struct Window {
     pub position: WindowPosition,
+    /// 收藏作为全局范围，或在当前全部 / 自定义分组内过滤。
+    pub favorite_scope: FavoriteScope,
     /// 打开剪贴板窗口时把历史列表回到顶部。
     pub scroll_to_top_on_open: bool,
     /// 打开剪贴板窗口时切换到指定范围；`Preserve` 表示保持上次状态。
@@ -580,6 +585,7 @@ impl Default for Window {
     fn default() -> Self {
         Self {
             position: WindowPosition::FollowCursor,
+            favorite_scope: FavoriteScope::Global,
             scroll_to_top_on_open: true,
             select_range_on_open: WindowOpenRangeSelection::Preserve,
             select_category_on_open: WindowOpenCategorySelection::Preserve,
@@ -588,6 +594,14 @@ impl Default for Window {
             idle_destroy_seconds: 60,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FavoriteScope {
+    #[default]
+    Global,
+    WithinGroup,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
