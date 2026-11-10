@@ -7,10 +7,13 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize, Window};
 
+use super::CLIPBOARD_WINDOW_LABEL;
 use crate::core::Result;
 
 const STATE_FILENAME: &str = "window-state.json";
 const SCREEN_MARGIN_LOGICAL: f64 = 16.0;
+const CLIPBOARD_MIN_WIDTH_LOGICAL: f64 = 360.0;
+const CLIPBOARD_MIN_HEIGHT_LOGICAL: f64 = 600.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowState {
@@ -184,8 +187,9 @@ pub fn restore_window_state(app: &AppHandle, label: &str) -> Result<bool> {
         .map(Monitor::scale_factor)
         .or(state.scale_factor)
         .unwrap_or(1.0);
-    let size =
-        constrain_size_to_monitor(state.physical_size_at_scale(target_scale), target_monitor);
+    let desired_size = state.physical_size_at_scale(target_scale);
+    let desired_size = ensure_minimum_logical_size(label, desired_size, target_scale);
+    let size = constrain_size_to_monitor(desired_size, target_monitor);
 
     window.set_size(size).map_err(|e| anyhow::anyhow!(e))?;
 
@@ -260,6 +264,7 @@ pub fn handle_scale_factor_changed(
         })
         .map(|state| state.physical_size_at_scale(scale_factor))
         .unwrap_or(suggested_size);
+    let desired_size = ensure_minimum_logical_size(window.label(), desired_size, scale_factor);
     let monitor = window.current_monitor().ok().flatten();
     let size = constrain_size_to_monitor(desired_size, monitor.as_ref());
 
@@ -387,6 +392,24 @@ fn constrain_size_to_monitor(
     PhysicalSize::new(size.width.min(max_width), size.height.min(max_height))
 }
 
+/// Keep old or stale physical-pixel state from collapsing below the configured
+/// logical clipboard-window minimum after a Remote Desktop scale change.
+fn ensure_minimum_logical_size(
+    label: &str,
+    size: PhysicalSize<u32>,
+    scale_factor: f64,
+) -> PhysicalSize<u32> {
+    if label != CLIPBOARD_WINDOW_LABEL {
+        return size;
+    }
+
+    let scale_factor = scale_factor.max(0.1);
+    let min_width = (CLIPBOARD_MIN_WIDTH_LOGICAL * scale_factor).round() as u32;
+    let min_height = (CLIPBOARD_MIN_HEIGHT_LOGICAL * scale_factor).round() as u32;
+
+    PhysicalSize::new(size.width.max(min_width), size.height.max(min_height))
+}
+
 fn clamp_position_to_monitor(
     position: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
@@ -460,5 +483,44 @@ mod tests {
             state.physical_size_at_scale(1.25),
             PhysicalSize::new(640, 480)
         );
+    }
+
+    #[test]
+    fn clipboard_restore_rejects_legacy_physical_size_below_logical_minimum() {
+        let state = WindowState {
+            x: 0,
+            y: 0,
+            width: 360,
+            height: 600,
+            scale_factor: None,
+        };
+
+        let restored = ensure_minimum_logical_size(
+            CLIPBOARD_WINDOW_LABEL,
+            state.physical_size_at_scale(2.0),
+            2.0,
+        );
+
+        assert_eq!(restored, PhysicalSize::new(720, 1200));
+    }
+
+    #[test]
+    fn clipboard_restore_repairs_a_saved_size_with_the_wrong_scale() {
+        let state = state(360, 600, 2.0);
+
+        let restored = ensure_minimum_logical_size(
+            CLIPBOARD_WINDOW_LABEL,
+            state.physical_size_at_scale(2.0),
+            2.0,
+        );
+
+        assert_eq!(restored, PhysicalSize::new(720, 1200));
+    }
+
+    #[test]
+    fn minimum_size_does_not_change_other_windows() {
+        let size = PhysicalSize::new(320, 240);
+
+        assert_eq!(ensure_minimum_logical_size("preference", size, 2.0), size);
     }
 }

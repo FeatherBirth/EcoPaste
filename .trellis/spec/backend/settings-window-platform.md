@@ -982,6 +982,10 @@ monitors can change both monitor bounds and per-window scale factors.
   capture it. Missing `scaleFactor` remains valid for legacy state files.
 - On restore and scale change, derive logical size from
   `physical_size / saved_scale`, then apply the target monitor's current scale.
+- Clipboard-window restore and live scale handling enforce the configured
+  `360x600` logical minimum before monitor clamping. Legacy state has no saved
+  scale, so its physical pixels alone could otherwise render at half size on a
+  200% Remote Desktop session until a manual resize repaired the state.
 - Clamp size and position with a 16-logical-pixel margin so the complete window
   remains inside the active monitor.
 - `monitor_from_point` receives physical cursor coordinates. Do not convert the
@@ -993,6 +997,8 @@ monitors can change both monitor bounds and per-window scale factors.
 
 - Legacy state without scale -> use the current scale without reinterpretation.
 - Saved scale differs from current scale -> preserve logical size.
+- Legacy or stale state yields a physical size below `360x600 * current_scale`
+  -> raise it to the logical minimum before monitor clamping.
 - Window exceeds monitor bounds -> shrink to bounds and clamp position.
 - Saved position no longer exists -> center on the cursor monitor.
 - Monitor/cursor lookup fails -> leave the window at its current geometry.
@@ -1000,6 +1006,8 @@ monitors can change both monitor bounds and per-window scale factors.
 ### 5. Good/Base/Bad Cases
 
 - Good: 540x900 physical at 150% restores as 360x600 physical at 100%.
+- Good: legacy 360x600 physical state restores as 720x1200 physical at 200%,
+  rather than a half-size clipboard window.
 - Good: Remote Desktop lowers the logical viewport and a 960x600 preference
   window is clamped while its content remains scrollable.
 - Base: same-scale restore keeps the user's chosen size and position.
@@ -1010,8 +1018,11 @@ monitors can change both monitor bounds and per-window scale factors.
 
 - Unit-test 150% -> 100% and 150% -> 200% physical-size conversion.
 - Unit-test legacy state with no scale falling back to current pixels.
+- Unit-test clipboard minimum enforcement for legacy scale metadata and stale
+  saved sizes, plus no changes to other window labels.
 - Manual Remote Desktop test: connect at a different resolution/DPI, move the
-  window between monitors, and verify size and position remain fully visible.
+  window between monitors, reopen the clipboard window before dragging it, and
+  verify size and position remain fully visible.
 
 ### 7. Wrong vs Correct
 

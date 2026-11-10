@@ -30,6 +30,8 @@
     decision with tests.
 19. Bump all version sources to `1.5.0`, build the NSIS installer, replace the
     machine-wide installation, and verify launch and version metadata.
+20. Enforce the clipboard window's logical minimum during DPI restore so legacy
+    physical-only state cannot open half-size after a Remote Desktop reconnect.
 
 ## Validation
 

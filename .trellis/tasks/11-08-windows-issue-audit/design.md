@@ -92,6 +92,10 @@ clipped at high DPI or short logical viewport heights.
 
 - Persist physical position as Windows uses it, but persist the source scale
   factor and derive logical window width/height from the saved physical size.
+- Enforce the clipboard window's `360x600` logical minimum during restore and
+  live scale changes. Legacy state does not contain a scale factor, so applying
+  its raw physical pixels on a 200% Remote Desktop session can otherwise shrink
+  the CSS viewport to half size until the user drags the window.
 - On restore, choose the monitor containing the saved position, convert logical
   size to that monitor's current scale, clamp to the monitor bounds, then clamp
   position so the full window remains visible.
@@ -163,4 +167,5 @@ especially after long idle or Remote Desktop reconnection.
   bootstrap manifest to the previous root.
 - New behavior is narrowly gated to Windows where platform-specific.
 - Window state JSON remains backward compatible: missing scale metadata is read
-  as unknown and falls back to current scale.
+  as unknown and falls back to current physical pixels, then the clipboard
+  window is raised to its logical minimum for the active scale.

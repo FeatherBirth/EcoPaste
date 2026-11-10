@@ -93,6 +93,8 @@ operating system outside the project's supported baseline.
       external evidence, and explicitly excluded update/OS-support issues.
 - [x] Window geometry persists in logical dimensions plus source scale, and is
       converted/clamped when Remote Desktop changes resolution or DPI.
+- [x] A legacy or stale physical-only clipboard geometry cannot render below the
+      configured `360x600` logical minimum after a Remote Desktop DPI change.
 - [x] Live `ScaleFactorChanged` events clamp and reposition windows without
       allowing them to grow beyond the active monitor.
 - [x] Context menus remain warm after their first creation, eliminating the
