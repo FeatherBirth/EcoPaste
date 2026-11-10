@@ -105,3 +105,36 @@ Restored native Office/WPS table paste semantics by keeping image records with a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Windows in-place upgrade and startup hardening
+
+**Date**: 2026-11-10
+**Task**: Windows in-place upgrade and startup hardening
+**Branch**: `codex/clipboard-filter-preview-refinements`
+
+### Summary
+
+Added per-machine NSIS updates, preinstall/preuninstall process-tree cleanup, passive /UPDATE /R install scripts, and version 1.5.1. Verified repeated in-place upgrades, one responsive process, version/registry metadata, normal startup logging, and Alt+C shortcut activation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5fd0f63` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
