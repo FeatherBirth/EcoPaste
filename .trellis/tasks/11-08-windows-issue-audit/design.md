@@ -145,12 +145,14 @@ especially after long idle or Remote Desktop reconnection.
 
 ## Local Installation
 
-- Build an NSIS installer from the current tree.
+- Set the package, Cargo manifest, and lock entry versions to `1.5.0`.
+- Build the frontend and an NSIS installer from the current tree.
 - Stop the running installed instance before replacement.
 - Install silently into the existing Program Files location when the NSIS
   installer recognizes the prior machine-wide install.
-- Verify executable path, timestamp/version, installed files, and successful app
-  launch. Keep existing user data and settings.
+- Verify installer hash, executable path, timestamp, `1.5.0` version metadata,
+  release-build hash, and successful app launch. Keep existing user data and
+  settings.
 
 ## Compatibility and Rollback
 

@@ -56,6 +56,8 @@ operating system outside the project's supported baseline.
     visible in their list card.
 13. Fix single-image file records so the preview window renders the same image
     content as the list card instead of a generic file icon.
+14. Package the current source as version `1.5.0`, replace the existing
+    machine-wide installation, and verify the installed executable.
 
 ## Acceptance Criteria
 
@@ -108,6 +110,12 @@ operating system outside the project's supported baseline.
 - [x] A files record containing one existing image file renders an image in the
       preview window.
 - [x] New settings default safely for existing settings files without migration.
+- [x] Version metadata is aligned at `1.5.0`.
+- [x] A `1.5.0` NSIS installer is built and installed over the existing
+      `C:\Program Files\EcoPaste` installation.
+- [x] The installed executable reports `1.5.0`, matches the NSIS-packaged release
+      metadata/size, and launches successfully without modifying existing user
+      data.
 
 ## Validation Notes
 
@@ -133,6 +141,17 @@ operating system outside the project's supported baseline.
   test identifier, but Windows app approval timed out twice. Manual UI checks
   remain required for favorite-mode transitions, short-text hover suppression,
   and single-JPG file preview.
+- Version `1.5.0` NSIS package:
+  `src-tauri/target/release/bundle/nsis/EcoPaste_1.5.0_x64-setup.exe`.
+- Installer SHA-256:
+  `B370094923A33C6BBF3B9F88BD9C60CC85F5E23CF6B0BAFD26DA27E299552846`.
+- The machine-wide installation completed with exit code 0 into
+  `C:\Program Files\EcoPaste`. The registered uninstall entry reports `1.5.0`,
+  the installed executable reports file/product version `1.5.0`, and the
+  launched process remains responsive.
+- The installer and installed executable are unsigned (`NotSigned`). NSIS
+  patches bundle metadata into the installed executable, so its SHA-256 differs
+  from the pre-bundle release executable while size and version remain aligned.
 
 ## Out of Scope
 

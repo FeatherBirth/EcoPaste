@@ -28,6 +28,8 @@
 17. Add the short fully-visible text hover setting and DOM overflow check.
 18. Render single-image file records in the preview window and cover the payload
     decision with tests.
+19. Bump all version sources to `1.5.0`, build the NSIS installer, replace the
+    machine-wide installation, and verify launch and version metadata.
 
 ## Validation
 
