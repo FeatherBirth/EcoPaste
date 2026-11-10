@@ -39,3 +39,36 @@ Fixed Windows keyboard/clipboard/autostart/storage issues, added scale-aware Rem
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Remote desktop clipboard DPI recovery
+
+**Date**: 2026-11-10
+**Task**: Remote desktop clipboard DPI recovery
+**Branch**: `codex/clipboard-filter-preview-refinements`
+
+### Summary
+
+Fixed a Remote Desktop DPI restore regression where legacy physical-only clipboard geometry opened at half size; enforced the 360x600 logical minimum during restore and live scale changes, documented the invariant, and validated Rust/frontend quality gates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7f79cad` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
