@@ -32,4 +32,8 @@ pub struct ImagePayload {
     pub bytes: Vec<u8>,
     pub width: u32,
     pub height: u32,
+    /// Office/WPS 混合剪贴板同时提供的纯文本表示。
+    ///
+    /// 图片仍是记录与预览的主表示；该文本只用于搜索和显式纯文本写回。
+    pub plain_text: Option<String>,
 }

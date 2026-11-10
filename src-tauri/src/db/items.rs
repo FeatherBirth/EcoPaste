@@ -68,6 +68,21 @@ fn kind_tag(kind: ClipboardKind) -> &'static str {
 /// 未命中 → 调用 [`insert_item`] 插入。返回生效行 id 与是否去重。
 pub async fn upsert_item(pool: &SqlitePool, item: &ClipboardItem) -> Result<UpsertResult> {
     if let Some(existing) = find_item_by_content_hash(pool, &item.content_hash).await? {
+        if existing.kind == ClipboardKind::Image && existing.search_text.is_none() {
+            if let Some(text) = item
+                .search_text
+                .as_deref()
+                .filter(|text| !text.trim().is_empty())
+            {
+                sqlx::query("UPDATE clipboard_items SET search_text = ? WHERE id = ?")
+                    .bind(text)
+                    .bind(&existing.id)
+                    .execute(pool)
+                    .await
+                    .context("failed to backfill image plain-text fallback")?;
+            }
+        }
+
         increment_item_use_count(pool, &existing.id).await?;
         return Ok(UpsertResult {
             id: existing.id,
@@ -672,6 +687,25 @@ mod tests {
         assert_eq!(ids(&all), ["first"]);
         assert_eq!(all[0].use_count, 2);
         assert!(find_item_by_id(&pool, "second").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn upsert_backfills_plain_text_on_existing_image() {
+        let pool = memory_pool().await;
+        let mut image = sample_item("image");
+        image.kind = ClipboardKind::Image;
+        image.content = "image.png".to_owned();
+        image.content_hash = content_hash(ClipboardKind::Image, &image.content);
+        upsert_item(&pool, &image).await.unwrap();
+
+        let mut duplicate = image.clone();
+        duplicate.id = "duplicate".to_owned();
+        duplicate.search_text = Some("alpha\tbeta".to_owned());
+        let result = upsert_item(&pool, &duplicate).await.unwrap();
+
+        assert_eq!(result.id, image.id);
+        let found = find_item_by_id(&pool, &image.id).await.unwrap().unwrap();
+        assert_eq!(found.search_text.as_deref(), Some("alpha\tbeta"));
     }
 
     #[tokio::test]

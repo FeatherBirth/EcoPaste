@@ -275,7 +275,7 @@ pub fn build_item_with_settings(
                 kind: ClipboardKind::Image,
                 sub_kind: None,
                 content: stored.file_name,
-                search_text: None,
+                search_text: image.plain_text.clone(),
                 summary: None,
                 file_types: None,
                 width: Some(stored.width),
@@ -766,6 +766,7 @@ mod tests {
             bytes: sample_png(20, 10),
             width: 20,
             height: 10,
+            plain_text: None,
         });
         let item = build_item(&s, &payload).unwrap().unwrap();
         assert_eq!(item.kind, ClipboardKind::Image);
@@ -782,6 +783,23 @@ mod tests {
     }
 
     #[test]
+    fn office_image_keeps_plain_text_as_search_fallback() {
+        let (_d, s) = store();
+        let payload = ClipboardPayload::Image(ImagePayload {
+            bytes: sample_png(20, 10),
+            width: 20,
+            height: 10,
+            plain_text: Some("alpha\tbeta\n1\t2".to_owned()),
+        });
+
+        let item = build_item(&s, &payload).unwrap().unwrap();
+
+        assert_eq!(item.kind, ClipboardKind::Image);
+        assert_eq!(item.summary, None);
+        assert_eq!(item.search_text.as_deref(), Some("alpha\tbeta\n1\t2"));
+    }
+
+    #[test]
     fn disabled_image_yields_none() {
         let (_d, s) = store();
         let capture = Capture {
@@ -792,6 +810,7 @@ mod tests {
             bytes: sample_png(20, 10),
             width: 20,
             height: 10,
+            plain_text: None,
         });
         let item =
             build_item_with_settings(&s, &payload, &capture, &Sensitive::default(), false).unwrap();
@@ -810,6 +829,7 @@ mod tests {
             bytes: bytes.clone(),
             width: 20,
             height: 10,
+            plain_text: None,
         });
         let item =
             build_item_with_settings(&s, &payload, &capture, &Sensitive::default(), false).unwrap();

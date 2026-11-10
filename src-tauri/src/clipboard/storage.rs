@@ -252,6 +252,7 @@ mod tests {
             bytes: sample_png(64, 48),
             width: 64,
             height: 48,
+            plain_text: None,
         };
 
         let stored = store.store(&payload).unwrap();
@@ -284,6 +285,7 @@ mod tests {
             bytes: sample_png(64, 48),
             width: 64,
             height: 48,
+            plain_text: None,
         };
         let stored = store.store(&payload).unwrap();
 
@@ -315,6 +317,7 @@ mod tests {
             bytes: sample_png(32, 32),
             width: 32,
             height: 32,
+            plain_text: None,
         };
 
         let a = store.store(&payload).unwrap();
@@ -331,6 +334,7 @@ mod tests {
             bytes: sample_png(40, 30),
             width: 40,
             height: 30,
+            plain_text: None,
         };
         let stored = store.store(&payload).unwrap();
         store.ensure_thumbnail(&stored.file_name).unwrap();
@@ -363,6 +367,7 @@ mod tests {
             bytes: sample_png(40, 30),
             width: 40,
             height: 30,
+            plain_text: None,
         };
         let stored = store.store(&payload).unwrap();
         let shard = store
@@ -389,6 +394,7 @@ mod tests {
             bytes: sample_png(16, 16),
             width: 16,
             height: 16,
+            plain_text: None,
         };
         let stored = store.store(&payload).unwrap();
         // 只落了原图，缩略图从未生成；remove 不应因缩略图缺失而失败。

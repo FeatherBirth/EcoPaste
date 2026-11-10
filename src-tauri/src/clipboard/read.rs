@@ -33,8 +33,8 @@ impl ClipboardReader {
         self.read_with_capture_for_source(capture, None)
     }
 
-    /// Read with a source-application hint so Office/WPS text selections do not
-    /// become images merely because those apps expose an image fallback first.
+    /// Read with a source-application hint so Office/WPS image records can keep
+    /// the plain-text representation as an alternate writeback format.
     pub fn read_with_capture_for_source(
         &self,
         capture: &Capture,
@@ -64,17 +64,13 @@ impl ClipboardReader {
                 }
                 CaptureKind::Image => {
                     if self.ctx.has(ContentFormat::Image) {
-                        if prefer_office_text
-                            && text_payload.as_ref().is_some_and(|payload| {
-                                payload.as_ref().is_some_and(|text| {
-                                    capture_text_representation_exists(text, capture)
-                                })
-                            })
-                        {
-                            continue;
-                        }
+                        if let Some(mut image) = self.read_image()? {
+                            image.plain_text = office_plain_text(
+                                prefer_office_text,
+                                capture,
+                                text_payload.as_ref().and_then(|payload| payload.as_ref()),
+                            );
 
-                        if let Some(image) = self.read_image()? {
                             return Ok(Some(ClipboardPayload::Image(image)));
                         }
                     }
@@ -157,6 +153,7 @@ impl ClipboardReader {
                     bytes,
                     width,
                     height,
+                    plain_text: None,
                 }));
             }
             // 拿到了 PNG 格式字节但解析不出尺寸（异常/截断）：落到下方回退，由库重新解码。
@@ -177,6 +174,7 @@ impl ClipboardReader {
             bytes,
             width,
             height,
+            plain_text: None,
         }))
     }
 }
@@ -203,14 +201,17 @@ fn is_office_clipboard_source(source_app_id: &str) -> bool {
     )
 }
 
-fn capture_text_representation_exists(text: &TextPayload, capture: &Capture) -> bool {
-    capture.ordered_kinds().into_iter().any(|kind| {
-        matches!(
-            kind,
-            CaptureKind::Html | CaptureKind::Rtf | CaptureKind::Text
-        ) && capture.is_enabled(kind)
-            && text_contains_kind(text, kind)
-    })
+fn office_plain_text(
+    prefer_office_text: bool,
+    capture: &Capture,
+    text: Option<&TextPayload>,
+) -> Option<String> {
+    if !prefer_office_text || !capture.text {
+        return None;
+    }
+
+    text.map(|payload| payload.text.clone())
+        .filter(|text| !text.trim().is_empty())
 }
 
 /// 平台剪贴板里 PNG 的原始格式标识符，用于 `get_buffer` 直取原始字节。
@@ -335,17 +336,17 @@ mod tests {
     }
 
     #[test]
-    fn office_text_preference_requires_an_enabled_text_representation() {
+    fn office_image_fallback_requires_enabled_plain_text_capture() {
         let text = TextPayload {
-            text: "plain".to_owned(),
-            html: Some("<b>rich</b>".to_owned()),
+            text: "cell one\tcell two".to_owned(),
+            html: Some("<table><tr><td>cell one</td></tr></table>".to_owned()),
             rtf: None,
         };
 
-        assert!(capture_text_representation_exists(
-            &text,
-            &Capture::default()
-        ));
+        assert_eq!(
+            office_plain_text(true, &Capture::default(), Some(&text)),
+            Some("cell one\tcell two".to_owned())
+        );
 
         let text_only = Capture {
             html: false,
@@ -353,7 +354,11 @@ mod tests {
             text: false,
             ..Capture::default()
         };
-        assert!(!capture_text_representation_exists(&text, &text_only));
+        assert_eq!(office_plain_text(true, &text_only, Some(&text)), None);
+        assert_eq!(
+            office_plain_text(false, &Capture::default(), Some(&text)),
+            None
+        );
     }
 
     #[test]

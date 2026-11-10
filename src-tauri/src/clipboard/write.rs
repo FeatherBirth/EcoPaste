@@ -14,8 +14,12 @@
 //!
 //! 纯文本模式（`plain = true`）：忽略 `sub_kind`，写 `search_text`（OS 提供的纯文本表示），
 //! 缺失时退回 `content`。供「纯文本粘贴」快捷路径使用。
+//! Office 图片记录可把 `search_text` 作为备用文本：默认写回图片 + 文本双格式，
+//! 纯文本模式只写该文本。
 
 use clipboard_rs::common::RustImage;
+#[cfg(test)]
+use clipboard_rs::ContentFormat;
 use clipboard_rs::{Clipboard, ClipboardContent, ClipboardContext, RustImageData};
 
 use super::guard::WritebackGuard;
@@ -35,12 +39,28 @@ pub fn write_to_clipboard(
 
     match item.kind {
         ClipboardKind::Text => write_text(&ctx, guard, item, plain)?,
-        ClipboardKind::Image => write_image(&ctx, store, guard, item)?,
+        ClipboardKind::Image => {
+            let fallback = image_plain_text(item);
+            if plain {
+                if let Some(text) = fallback {
+                    write_plain_text(&ctx, guard, text)?;
+                } else {
+                    write_image(&ctx, store, guard, item, None)?;
+                }
+            } else {
+                write_image(&ctx, store, guard, item, fallback)?;
+            }
+        }
         // files + plain：把路径列表当文本写回，供「粘贴为路径」使用。
         ClipboardKind::Files if plain => write_files_as_text(&ctx, guard, item)?,
         ClipboardKind::Files => write_files(&ctx, guard, item)?,
     }
     Ok(())
+}
+
+fn write_plain_text(ctx: &ClipboardContext, guard: &WritebackGuard, text: &str) -> Result<()> {
+    guard.suppress(content_hash(ClipboardKind::Text, text));
+    ctx.set_text(text.to_owned()).map_err(clip_err)
 }
 
 fn write_text(
@@ -99,6 +119,7 @@ fn write_image(
     store: &ImageStore,
     guard: &WritebackGuard,
     item: &ClipboardItem,
+    plain_text: Option<&str>,
 ) -> Result<()> {
     let path = store.origin_path(&item.content);
     let bytes = std::fs::read(&path).map_err(|err| {
@@ -108,7 +129,51 @@ fn write_image(
     let image = RustImageData::from_bytes(&bytes).map_err(clip_err)?;
 
     guard.suppress(item.content_hash.clone());
-    ctx.set_image(image).map_err(clip_err)?;
+    let Some(plain_text) = plain_text else {
+        ctx.set_image(image).map_err(clip_err)?;
+        return Ok(());
+    };
+
+    guard.suppress(content_hash(ClipboardKind::Text, plain_text));
+
+    #[cfg(target_os = "macos")]
+    ctx.set(vec![
+        ClipboardContent::Image(image),
+        ClipboardContent::Text(plain_text.to_owned()),
+    ])
+    .map_err(clip_err)?;
+
+    #[cfg(target_os = "windows")]
+    {
+        ctx.set_image(image).map_err(clip_err)?;
+        append_windows_text(plain_text)?;
+    }
+
+    Ok(())
+}
+
+fn image_plain_text(item: &ClipboardItem) -> Option<&str> {
+    item.search_text
+        .as_deref()
+        .filter(|text| !text.trim().is_empty())
+}
+
+#[cfg(target_os = "windows")]
+fn append_windows_text(text: &str) -> Result<()> {
+    let mut write_error: Option<String> = None;
+
+    clipboard_win::with_clipboard_attempts(10, || {
+        if let Err(err) = clipboard_win::raw::set_string_with(text, clipboard_win::options::NoClear)
+        {
+            write_error = Some(format!("set Unicode clipboard text failed: {err}"));
+        }
+    })
+    .map_err(clip_err)?;
+
+    if let Some(error) = write_error {
+        return Err(AppError::Clipboard(error));
+    }
+
     Ok(())
 }
 
@@ -148,7 +213,7 @@ fn clip_err<E: std::fmt::Display>(err: E) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::super::payload::ImagePayload;
+    use super::super::payload::{ClipboardPayload, ImagePayload};
     use super::super::read::ClipboardReader;
     use super::*;
     use crate::clipboard::{build_item, ImageStore, WritebackGuard};
@@ -198,6 +263,77 @@ mod tests {
         let dir = TempDir::new();
         let store = ImageStore::for_test(dir.path().join("resources").join("clipboard-images"));
         (dir, store)
+    }
+
+    fn stored_image_item(
+        store: &ImageStore,
+        plain_text: Option<&str>,
+        width: u32,
+        height: u32,
+    ) -> ClipboardItem {
+        let stored = store
+            .store(&ImagePayload {
+                bytes: sample_png(width, height),
+                width,
+                height,
+                plain_text: plain_text.map(str::to_owned),
+            })
+            .unwrap();
+
+        ClipboardItem {
+            id: uuid::Uuid::new_v4().to_string(),
+            kind: ClipboardKind::Image,
+            sub_kind: None,
+            group_id: None,
+            source_app_id: None,
+            content_hash: content_hash(ClipboardKind::Image, &stored.file_name),
+            content: stored.file_name,
+            search_text: plain_text.map(str::to_owned),
+            summary: None,
+            file_types: None,
+            size: Some(stored.size),
+            width: Some(stored.width),
+            height: Some(stored.height),
+            use_count: 1,
+            is_favorite: false,
+            is_pinned: false,
+            is_sensitive: false,
+            platform: Platform::Macos,
+            note: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            source_app_name: None,
+            source_app_icon_file: None,
+            source_app_icon_path: None,
+            image_thumbnail_path: None,
+            file_entries: None,
+            files_preview_kind: None,
+            available_actions: Vec::new(),
+            color_preview: None,
+            display_created_at: String::new(),
+        }
+    }
+
+    fn read_text_from_clipboard(ctx: &ClipboardContext) -> String {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = ctx;
+            clipboard_win::get_clipboard(clipboard_win::formats::Unicode).unwrap()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            ctx.get_text().unwrap()
+        }
+    }
+
+    #[test]
+    fn image_plain_text_requires_non_blank_fallback() {
+        let mut item = text_item("fallback", None, Some("  \n\t "));
+        item.kind = ClipboardKind::Image;
+        assert_eq!(image_plain_text(&item), None);
+
+        item.search_text = Some("alpha\tbeta".to_owned());
+        assert_eq!(image_plain_text(&item), Some("alpha\tbeta"));
     }
 
     // 触碰真实剪贴板：写入纯文本 → 读回应为同串，且 guard 已登记本次哈希。
@@ -256,46 +392,7 @@ mod tests {
         let guard = WritebackGuard::new();
 
         // 先落盘一张原图（模拟历史记录里的 image item）。
-        let png = sample_png(48, 32);
-        let stored = store
-            .store(&ImagePayload {
-                bytes: png,
-                width: 48,
-                height: 32,
-            })
-            .unwrap();
-        let item = ClipboardItem {
-            id: uuid::Uuid::new_v4().to_string(),
-            kind: ClipboardKind::Image,
-            sub_kind: None,
-            group_id: None,
-            source_app_id: None,
-            content_hash: content_hash(ClipboardKind::Image, &stored.file_name),
-            content: stored.file_name.clone(),
-            search_text: None,
-            summary: None,
-            file_types: None,
-            size: Some(stored.size),
-            width: Some(stored.width),
-            height: Some(stored.height),
-            use_count: 1,
-            is_favorite: false,
-            is_pinned: false,
-            is_sensitive: false,
-            platform: Platform::Macos,
-            note: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            source_app_name: None,
-            source_app_icon_file: None,
-            source_app_icon_path: None,
-            image_thumbnail_path: None,
-            file_entries: None,
-            files_preview_kind: None,
-            available_actions: Vec::new(),
-            color_preview: None,
-            display_created_at: String::new(),
-        };
+        let item = stored_image_item(&store, None, 48, 32);
 
         write_to_clipboard(&store, &guard, &item, false).unwrap();
 
@@ -309,6 +406,45 @@ mod tests {
         // 往返期望 PNG 字节哈希一致 → 同 content_hash → guard 抑制。
         assert_eq!(read_item.content_hash, item.content_hash);
         assert!(guard.should_skip(&read_item.content_hash));
+    }
+
+    #[test]
+    #[ignore = "touches the real system clipboard; run with --ignored on a desktop session"]
+    fn office_image_writes_image_and_text_then_plain_text_only() {
+        let _serial = crate::clipboard::test_lock::serial();
+        let (_dir, store) = temp_store();
+        let guard = WritebackGuard::new();
+        let item = stored_image_item(&store, Some("alpha\tbeta\n1\t2"), 48, 32);
+        let ctx = ClipboardContext::new().unwrap();
+
+        write_to_clipboard(&store, &guard, &item, false).unwrap();
+
+        assert!(ctx.has(ContentFormat::Image));
+        assert!(ctx.has(ContentFormat::Text));
+        assert_eq!(read_text_from_clipboard(&ctx), "alpha\tbeta\n1\t2");
+        assert!(guard.should_skip(&item.content_hash));
+        assert!(guard.should_skip(&content_hash(ClipboardKind::Text, "alpha\tbeta\n1\t2")));
+
+        let payload = ClipboardReader::new()
+            .unwrap()
+            .read_with_capture_for_source(
+                &crate::settings::Capture::default(),
+                Some(r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE"),
+            )
+            .unwrap()
+            .expect("Office image capture should succeed");
+        match payload {
+            ClipboardPayload::Image(image) => {
+                assert_eq!(image.plain_text.as_deref(), Some("alpha\tbeta\n1\t2"));
+            }
+            other => panic!("expected image payload, got {other:?}"),
+        }
+
+        write_to_clipboard(&store, &guard, &item, true).unwrap();
+
+        assert!(!ctx.has(ContentFormat::Image));
+        assert!(ctx.has(ContentFormat::Text));
+        assert_eq!(read_text_from_clipboard(&ctx), "alpha\tbeta\n1\t2");
     }
 
     fn sample_png(w: u32, h: u32) -> Vec<u8> {

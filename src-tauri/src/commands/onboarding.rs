@@ -796,6 +796,7 @@ fn map_legacy_row_to_item(
                 bytes,
                 width,
                 height,
+                plain_text: None,
             })
         }
         _ => {

@@ -60,29 +60,37 @@ recovery, and exhaustion. Use zero-duration delays in unit tests; native
 clipboard contention belongs in ignored desktop-session tests or manual Windows
 validation with another clipboard listener enabled.
 
-## Office/WPS Text Over Image
+## Office/WPS Mixed Image and Text
 
 Office and WPS text selections can expose both rich text and a rendered image.
 Without a source hint, the default `files > image > html > rtf > text` order
-stores the image and loses editable text. `read_with_capture_for_source` accepts
-the foreground executable path and checks `winword.exe`, `powerpnt.exe`,
-`excel.exe`, `outlook.exe`, `wps.exe`, `wpp.exe`, `et.exe`, `wpspdf.exe`, and
-`soffice.exe`.
+stores the image and loses editable text, while forcing text makes image-capable
+targets paste as text. `read_with_capture_for_source` accepts the foreground
+executable path and checks `winword.exe`, `powerpnt.exe`, `excel.exe`,
+`outlook.exe`, `wps.exe`, `wpp.exe`, `et.exe`, `wpspdf.exe`, and `soffice.exe`.
 
-For those sources only, if an enabled text-family representation exists, the
-image candidate is skipped and the configured HTML/RTF/text order is used. The
-override does not apply to browsers, screenshots, or other applications.
+For those sources only, the capture order is still authoritative. When image
+capture wins, the non-empty source plain text is attached to `ImagePayload` and
+persisted as `ClipboardItem.search_text`. The record remains an image and its
+card/preview continue rendering the image.
+
+Default image writeback with this fallback must publish both image and text
+formats, matching the original Office clipboard. An explicit plain-text write
+publishes only `search_text`. Images without fallback text keep image-only
+writeback and do not expose `pasteAsPlainText`.
 
 Tests must cover:
 
 - All supported Office/WPS executable names.
-- An enabled text representation causing image priority to be skipped.
-- No text representation falling back to image capture.
+- Office image capture retaining plain text as a fallback.
+- Plain-text fallback requiring the text capture setting.
 - Non-Office sources retaining their configured capture order.
+- Image actions exposing `pasteAsPlainText` only when fallback text exists.
+- Existing image rows backfilling a newly available fallback during dedupe.
 
 ```rust
-// Wrong: source-unaware capture turns selected presentation text into an image.
-reader.read_with_capture(capture)
+// Wrong: forcing Office text loses the native image representation.
+// Keep image capture and attach the plain-text fallback instead.
 
 // Correct: pass the already-detected foreground source before reading formats.
 reader.read_with_capture_for_source(capture, source.as_ref().map(|app| app.id.as_str()))
@@ -104,6 +112,9 @@ capture order.
   `clipboard/detect.rs`.
 - Images are stored as PNG resources; the database `content` is the image file
   name.
+- Office/WPS image records may use `search_text` for the alternate plain-text
+  representation. List IPC computes actions in Rust and then clears this field
+  so large spreadsheet text does not cross the routine list boundary.
 - Files store newline-separated paths in `content` and compact file kind markers
   in `file_types`.
 
@@ -136,6 +147,11 @@ is not swallowed.
 
 If writeback behavior changes, keep the hash computed by the write path aligned
 with the hash the watcher will compute after reading the OS clipboard.
+
+Office image records with fallback text register both hashes. Windows first
+writes the image formats through clipboard-rs, then reopens the clipboard and
+appends Unicode text with a non-clearing write. macOS writes both contents
+through the clipboard library's multi-content API.
 
 Reference files:
 - `src-tauri/src/clipboard/write.rs`

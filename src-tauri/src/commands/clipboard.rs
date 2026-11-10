@@ -544,6 +544,7 @@ pub async fn list_clipboard_items(
         attach_display_created_at(item, &now);
         redact_sensitive_list_item(item, redact_sensitive);
         item.available_actions = compute_available_actions(item);
+        strip_image_plain_text_fallback(item);
     }
     let has_more = q.offset + (items.len() as i64) < total;
     Ok(ClipboardItemPage {
@@ -580,6 +581,7 @@ pub async fn get_clipboard_item(
         attach_display_created_at(item, &Local::now());
         redact_sensitive_list_item(item, redact_sensitive);
         item.available_actions = compute_available_actions(item);
+        strip_image_plain_text_fallback(item);
     }
     Ok(item)
 }
@@ -753,6 +755,9 @@ fn compute_available_actions(item: &ClipboardItem) -> Vec<ClipboardAction> {
     match item.kind {
         ClipboardKind::Text => actions.push(ClipboardAction::PasteAsPlainText),
         ClipboardKind::Files => actions.push(ClipboardAction::PasteAsPath),
+        ClipboardKind::Image if has_image_plain_text_fallback(item) => {
+            actions.push(ClipboardAction::PasteAsPlainText);
+        }
         ClipboardKind::Image => {}
     }
 
@@ -782,6 +787,22 @@ fn compute_available_actions(item: &ClipboardItem) -> Vec<ClipboardAction> {
     actions.push(ClipboardAction::Delete);
 
     actions
+}
+
+fn has_image_plain_text_fallback(item: &ClipboardItem) -> bool {
+    item.kind == ClipboardKind::Image
+        && item
+            .search_text
+            .as_deref()
+            .is_some_and(|text| !text.trim().is_empty())
+}
+
+/// The fallback is needed to compute actions and write back, but not by the
+/// image list card. Keep potentially large spreadsheet text out of list IPC.
+fn strip_image_plain_text_fallback(item: &mut ClipboardItem) {
+    if item.kind == ClipboardKind::Image {
+        item.search_text = None;
+    }
 }
 
 /// 生成图片另存为对话框默认文件名。
@@ -1834,6 +1855,28 @@ mod tests {
         let actions = compute_available_actions(&image_item());
 
         assert!(actions.contains(&ClipboardAction::SaveImage));
+        assert!(!actions.contains(&ClipboardAction::PasteAsPlainText));
+    }
+
+    #[test]
+    fn office_image_actions_include_plain_text() {
+        let mut item = image_item();
+        item.search_text = Some("alpha\tbeta".to_owned());
+
+        let actions = compute_available_actions(&item);
+
+        assert!(actions.contains(&ClipboardAction::PasteAsPlainText));
+        assert!(actions.contains(&ClipboardAction::SaveImage));
+    }
+
+    #[test]
+    fn list_item_hides_image_plain_text_fallback() {
+        let mut item = image_item();
+        item.search_text = Some("large spreadsheet text".to_owned());
+
+        strip_image_plain_text_fallback(&mut item);
+
+        assert_eq!(item.search_text, None);
     }
 
     #[test]
