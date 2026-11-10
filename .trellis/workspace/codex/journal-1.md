@@ -72,3 +72,36 @@ Fixed a Remote Desktop DPI restore regression where legacy physical-only clipboa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Office image and text clipboard fallback
+
+**Date**: 2026-11-10
+**Task**: Office image and text clipboard fallback
+**Branch**: `codex/clipboard-filter-preview-refinements`
+
+### Summary
+
+Restored native Office/WPS table paste semantics by keeping image records with an alternate plain-text representation, writing image plus text by default, exposing plain-text paste only when fallback text exists, and preserving image-only behavior. Unit, integration, Windows clipboard smoke, frontend, and build checks passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9cdba05` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
