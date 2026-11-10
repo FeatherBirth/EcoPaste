@@ -82,6 +82,7 @@ pnpm tauri dev
 pnpm tauri build
 pnpm lint
 pnpm format
+pnpm package:windows
 
 cd src-tauri
 cargo fmt
