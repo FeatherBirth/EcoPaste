@@ -35,6 +35,20 @@ EcoPaste 的目标是更快、更轻、更易维护，并提供本地存储、SQ
 - 支持导出和导入 `.ecopastebak` 备份，包括加密备份包。
 - 剪贴板数据、资源缓存和设置均保存在本机。
 
+## Windows 安装
+
+Windows x64 用户可以通过 PowerShell 下载并运行最新版安装脚本：
+
+```powershell
+$script = "$env:TEMP\install-ecopaste.ps1"
+Invoke-WebRequest "https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1" -OutFile $script
+powershell -NoProfile -ExecutionPolicy Bypass -File $script
+```
+
+脚本会下载最新稳定版安装包、校验 SHA-256、直接覆盖现有机器级安装，不会单独运行卸载程序，并会保留用户数据、启动一次 EcoPaste。安装期间 Windows 会正常弹出 UAC 授权窗口。
+
+建议先下载并检查脚本后再执行，不要让 PowerShell 直接把远程内容传给 `Invoke-Expression`。
+
 ## 参与贡献
 
 开发环境、架构说明、质量检查和贡献要求请阅读[贡献指南](./CONTRIBUTING.zh-CN.md)。

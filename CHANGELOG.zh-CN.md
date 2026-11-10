@@ -1,5 +1,20 @@
 # 更新日志
 
+## [1.5.1](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.0...v1.5.1) (2026-11-10)
+
+### ✨ 新功能
+
+- 新增经校验的 GitHub Release Windows 一键安装脚本。
+- 复制 Excel 与 WPS 表格时同时保留图片和纯文本格式。
+- 为 Office 图片记录新增显式粘贴纯文本操作。
+
+### 🐛 问题修复
+
+- 修复远程桌面 DPI 变化后剪贴板窗口以半尺寸显示的问题。
+- Windows 安装和卸载文件操作前自动结束残留的 EcoPaste 进程树。
+- 覆盖现有机器级 Windows 安装时不再需要单独手动卸载。
+- 自动升级后校验只启动一个 EcoPaste 进程。
+
 ## [1.1.0](https://github.com/EcoPasteHub/EcoPaste/compare/v1.0.0...v1.1.0) (2026-07-22)
 
 ### ✨ 新功能

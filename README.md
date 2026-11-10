@@ -35,6 +35,25 @@ The app is designed to be fast, lightweight, and maintainable, with local storag
 - Export and import `.ecopastebak` backups, including encrypted backup containers.
 - Keep clipboard data, resources, and settings local to your machine.
 
+## Install on Windows
+
+Windows x64 users can download and run the latest release installer with
+PowerShell:
+
+```powershell
+$script = "$env:TEMP\install-ecopaste.ps1"
+Invoke-WebRequest "https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1" -OutFile $script
+powershell -NoProfile -ExecutionPolicy Bypass -File $script
+```
+
+The script downloads the latest stable package, verifies its SHA-256 checksum,
+upgrades the existing machine-wide installation without running a separate
+uninstaller, preserves user data, and launches EcoPaste once. Windows will show
+the normal UAC elevation prompt.
+
+Download the script and inspect it before execution. Avoid piping remote
+PowerShell directly into `Invoke-Expression`.
+
 ## Contributing
 
 Development setup, architecture notes, quality checks, and contribution

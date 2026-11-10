@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.1](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.0...v1.5.1) (2026-11-10)
+
+### ✨ Features
+
+- Add a verified one-command Windows install script for GitHub Releases.
+- Preserve both image and plain-text formats when copying Excel and WPS tables.
+- Add explicit plain-text paste actions for Office image records.
+
+### 🐛 Bug Fixes
+
+- Prevent half-size clipboard windows after Remote Desktop DPI changes.
+- Stop stale EcoPaste process trees before Windows install and uninstall file operations.
+- Replace existing machine-wide Windows installations without a separate manual uninstall.
+- Verify that exactly one EcoPaste process starts after an automated upgrade.
+
 ## [1.1.0](https://github.com/EcoPasteHub/EcoPaste/compare/v1.0.0...v1.1.0) (2026-07-22)
 
 ### ✨ Features
