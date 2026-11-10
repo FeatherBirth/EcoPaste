@@ -78,3 +78,76 @@ Correct:
 $installer = Start-Process $setup -ArgumentList "/P", "/UPDATE", "/R" -PassThru
 $installer.WaitForExit(180000)
 ```
+
+## Scenario: GitHub Latest One-Command Install
+
+### 1. Scope / Trigger
+
+Adding or changing remote release assets, download URLs, checksum verification,
+or the published PowerShell bootstrap installer.
+
+### 2. Signatures
+
+- Source script: `scripts/installFromGitHub.ps1`
+- Published script: `install-ecopaste.ps1`
+- Published package alias: `EcoPaste_x64-setup.exe`
+- Published checksum: `EcoPaste_x64-setup.exe.sha256`
+- Default base URL:
+  `https://github.com/FeatherBirth/EcoPaste/releases/latest/download`
+- Optional test parameter: `-ReleaseBaseUrl <URL>`
+
+### 3. Contracts
+
+- Stable latest URLs are used; do not embed the release version in bootstrap
+  download paths.
+- HTTPS is required. Plain HTTP is accepted only for loopback test mirrors.
+- The script downloads the package and checksum to a unique temp directory.
+- SHA-256 must match before `Start-Process` is called.
+- The installer runs with `/P /UPDATE /R`.
+- The installed executable must equal the installer product version.
+- Exactly one responsive Program Files process must be observed.
+- Temporary downloads are removed in a `finally` block.
+
+### 4. Validation & Error Matrix
+
+- 32-bit Windows -> error before download.
+- Non-HTTPS remote source -> error before download.
+- Malformed checksum file -> error before execution.
+- Hash mismatch -> error before execution.
+- Installer non-zero -> propagate exit code.
+- Installer timeout -> error after 180 seconds.
+- No or multiple main processes -> error.
+
+### 5. Good/Base/Bad Cases
+
+- Good: latest public script downloads `v1.5.1`, verifies SHA-256, updates in
+  place, and starts one process.
+- Base: no existing install -> fresh machine-wide installation.
+- Bad: `Invoke-WebRequest ... | Invoke-Expression` executes unchecked remote
+  text without a saved inspectable file or package verification.
+
+### 6. Tests Required
+
+- Parse the script with the PowerShell AST parser.
+- Run a loopback HTTP mirror with a deliberately wrong checksum and assert the
+  installer is never started.
+- Repeat with the correct checksum and assert installation succeeds.
+- Verify all public latest URLs return HTTP 200.
+- Verify public script and checksum bytes match the release source/build.
+- Execute the downloaded public script and assert version plus single process.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```powershell
+irm https://github.com/.../install-ecopaste.ps1 | iex
+```
+
+Correct:
+
+```powershell
+$script = "$env:TEMP\install-ecopaste.ps1"
+Invoke-WebRequest "https://github.com/.../releases/latest/download/install-ecopaste.ps1" -OutFile $script
+powershell -NoProfile -ExecutionPolicy Bypass -File $script
+```

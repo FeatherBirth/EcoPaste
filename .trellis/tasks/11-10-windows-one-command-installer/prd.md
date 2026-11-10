@@ -49,16 +49,16 @@ machine-wide EcoPaste installation, and launch exactly one working instance.
 
 ## Acceptance Criteria
 
-- [ ] Release workflow uploads all three stable Windows assets.
-- [ ] Public latest-release URLs return HTTP 200 for all three assets.
-- [ ] Downloaded installer checksum matches the published checksum.
-- [ ] The remote script rejects a checksum mismatch before executing the setup.
-- [ ] Running the public script upgrades the existing installation without a
+- [x] Release workflow uploads all three stable Windows assets.
+- [x] Public latest-release URLs return HTTP 200 for all three assets.
+- [x] Downloaded installer checksum matches the published checksum.
+- [x] The remote script rejects a checksum mismatch before executing the setup.
+- [x] Running the public script upgrades the existing installation without a
       separate uninstall prompt.
-- [ ] Final installed version is `1.5.1` and exactly one responsive process
+- [x] Final installed version is `1.5.1` and exactly one responsive process
       remains.
-- [ ] Existing settings and clipboard data remain intact.
-- [ ] PowerShell parser, lint, TypeScript, Rust tests, and package build pass.
+- [x] Existing settings and clipboard data remain intact.
+- [x] PowerShell parser, lint, TypeScript, Rust tests, and package build pass.
 
 ## Out of Scope
 
@@ -73,3 +73,19 @@ machine-wide EcoPaste installation, and launch exactly one working instance.
 - Keep the script self-contained; it may use only Windows PowerShell 5.1 built-in
   modules.
 - HTTP is never accepted for package downloads.
+
+## Validation Notes
+
+- Release:
+  `https://github.com/FeatherBirth/EcoPaste/releases/tag/v1.5.1`.
+- Published assets:
+  `EcoPaste_1.5.1_x64-setup.exe`, `EcoPaste_x64-setup.exe`,
+  `EcoPaste_x64-setup.exe.sha256`, `install-ecopaste.ps1`.
+- All three `releases/latest/download` URLs returned HTTP 200.
+- Stable installer SHA-256:
+  `60ACF01A58E33A58C4A90EBBC2EC1BC085A71A2A7E8EDC57993CC46F573F12F8`.
+- The downloaded public script checksum matched the tracked source.
+- A local loopback mirror test rejected an invalid checksum before execution,
+  then completed successfully with the corrected checksum.
+- Executing the downloaded public script completed an in-place upgrade and
+  started exactly one responsive `EcoPaste 1.5.1` process.
