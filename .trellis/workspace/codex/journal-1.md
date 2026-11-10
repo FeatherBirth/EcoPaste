@@ -138,3 +138,37 @@ Added per-machine NSIS updates, preinstall/preuninstall process-tree cleanup, pa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: GitHub one-command Windows installer
+
+**Date**: 2026-11-10
+**Task**: GitHub one-command Windows installer
+**Branch**: `codex/clipboard-filter-preview-refinements`
+
+### Summary
+
+Published v1.5.1 stable Windows release assets and a checksum-verified PowerShell bootstrap installer. Added release workflow uploads, bilingual documentation, negative checksum testing, public latest URL verification, and a successful end-to-end remote in-place upgrade.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a513ea4` | (see git log) |
+| `48c5e7b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
