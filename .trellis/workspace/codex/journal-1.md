@@ -205,3 +205,40 @@ Added explicit logical window dimensions, position-aware restore, post-placement
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Stabilize clipboard hover previews and publish v1.5.3
+
+**Date**: 2026-11-11
+**Task**: Stabilize clipboard hover previews and publish v1.5.3
+**Branch**: `codex/clipboard-filter-preview-refinements`
+
+### Summary
+
+Stabilized same-item hover previews, centered connector anchors on item edges, fixed first-image measurement, built the Windows NSIS package, and published GitHub Release v1.5.3 after adapting release CI for fork authentication and unsigned fallback builds.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `14315e4` | (see git log) |
+| `4161ae8` | (see git log) |
+| `7aa79ab` | (see git log) |
+| `1ae8ee2` | (see git log) |
+| `96f10c4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

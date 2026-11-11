@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
+- **Total Sessions**: 7
 - **Last Active**: 2026-11-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~207 | Active |
+| `journal-1.md` | ~244 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-11-11 | Stabilize clipboard hover previews and publish v1.5.3 | `14315e4`, `4161ae8`, `7aa79ab`, `1ae8ee2`, `96f10c4` | `codex/clipboard-filter-preview-refinements` |
 | 6 | 2026-11-11 | Mixed-DPI clipboard window sizing | `90d45b6` | `codex/clipboard-filter-preview-refinements` |
 | 5 | 2026-11-10 | GitHub one-command Windows installer | `a513ea4`, `48c5e7b` | `codex/clipboard-filter-preview-refinements` |
 | 4 | 2026-11-10 | Windows in-place upgrade and startup hardening | `5fd0f63` | `codex/clipboard-filter-preview-refinements` |
