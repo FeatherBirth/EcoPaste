@@ -322,4 +322,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           TAG_NAME: ${{ needs.release-metadata.outputs.tag_name }}
-        run: gh release edit "${TAG_NAME}" --draft=false
+        run: gh release edit "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
