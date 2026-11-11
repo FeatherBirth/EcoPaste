@@ -166,6 +166,96 @@ clipboardViewState.range = "favorite";
 if (favoriteScope === "global") clipboardViewState.groupId = null;
 ```
 
+### Clipboard Hover Preview Stability and Geometry
+
+#### 1. Scope / Trigger
+
+Changing hover-preview pointer handling, connector anchors, or dynamic preview
+panel measurement crosses React event flow, the Tauri command contract, Rust
+window geometry, and the preview measurement lifecycle.
+
+#### 2. Signatures
+
+- Command: `show_clipboard_preview(item_id: String, anchor: PreviewAnchorRect)`
+- Anchor fields: `{ left: f64, top: f64, width: f64, height: f64 }`
+- TypeScript mirror: `PreviewAnchorRect`
+- Preview measurement hook:
+  `useMeasuredPanelSize() -> { measureRef: RefCallback<HTMLDivElement>, size }`
+- Rust geometry test: `keeps_clipboard_card_vertical_center`
+
+#### 3. Contracts
+
+- The frontend sends the full clipboard-item DOM rect; it must not send a
+  pointer Y coordinate.
+- Rust preserves that full rect as `sourceRect`. The connector chooses its
+  list-side anchor from the item edge midpoint, so right-side panels connect at
+  the item's right border and left-side panels connect at its left border.
+- Pointer movement within the active item does not call
+  `show_clipboard_preview` again. Only entering a different item retargets the
+  hover preview.
+- The hidden measurement node is conditionally mounted. Its `ResizeObserver`
+  must bind through a callback ref whenever the node mounts and disconnect when
+  it unmounts.
+- Initial motion may jump to the first content-backed size. A loading or stale
+  payload from another item must not end the jump-only phase.
+
+#### 4. Validation & Error Matrix
+
+- Non-finite, zero-size, or otherwise invalid item rect -> command error
+  `preview anchor is invalid`.
+- Pointer remains in the same item -> no additional preview command or state
+  update.
+- Pointer enters another item -> existing hide buffer is cancelled and the new
+  item opens immediately.
+- Payload item ID differs from the visible preview item -> layout is not ready
+  for spring transitions.
+- Image loads after initial mount -> observer reports the final measured panel
+  size without requiring another pointer event.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: moving vertically inside one item keeps the connector dot fixed at the
+  item edge midpoint and the preview window stable.
+- Good: an image's first content-backed layout displays the full scaled image
+  inside the 480px panel limit.
+- Base: text, image, and file payloads retain their existing preview behavior.
+- Bad: sending `pointerY` and collapsing the full item rect into a 1px pointer
+  anchor makes the connector follow the cursor instead of the item center.
+- Bad: subscribing `ResizeObserver` only on preview-page mount misses a
+  measurement node that is rendered later.
+
+#### 6. Tests Required
+
+- Rust geometry test asserts the source rect retains full height and its center
+  remains `top + height / 2`.
+- `pnpm tsc` asserts `PreviewAnchorRect` no longer accepts `pointerY`.
+- `rg` verifies no production `pointerY`, `pointer_y`, or same-item preview
+  pointer-move handler remains.
+- Manual Windows test covers same-item movement, cross-item switching, left and
+  right panel placement, first image open, and the file viewer.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```tsx
+showClipboardPreview(item.id, {
+  ...rect,
+  pointerY: event.clientY,
+});
+```
+
+Correct:
+
+```tsx
+showClipboardPreview(item.id, {
+  height: rect.height,
+  left: rect.left,
+  top: rect.top,
+  width: rect.width,
+});
+```
+
 ## Settings Events and Mirrors
 
 Rust is the source of truth. `commands::settings::update_settings` and

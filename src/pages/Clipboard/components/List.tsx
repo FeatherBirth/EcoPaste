@@ -1,11 +1,7 @@
 import { useMount } from "ahooks";
 import { Empty, Spin } from "antd";
 import type { TFunction } from "i18next";
-import type {
-  FC,
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent,
-} from "react";
+import type { FC, MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -146,7 +142,6 @@ const List: FC = () => {
     closePreview,
     handleItemPointerEnter,
     handleItemPointerLeave,
-    handleItemPointerMove,
     handleKeyboardPreviewMove,
     handlePreviewAreaPointerLeave,
     handlePreviewSpaceDown,
@@ -853,16 +848,12 @@ const List: FC = () => {
     const item = getItem(index);
     if (!item) return renderPlaceholderItem(index);
 
-    const handlePointerEnter = (event: ReactPointerEvent<HTMLDivElement>) => {
-      handleItemPointerEnter(item, event);
+    const handlePointerEnter = () => {
+      handleItemPointerEnter(item);
     };
 
     const handlePointerLeave = () => {
       handleItemPointerLeave();
-    };
-
-    const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-      handleItemPointerMove(item, event);
     };
 
     const relativeIndex = index - firstVisibleIndex;
@@ -1040,7 +1031,6 @@ const List: FC = () => {
           onOpenLink={handleOpenLink}
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
-          onPointerMove={handlePointerMove}
           onQuickAction={handleQuickAction}
           onQuickPaste={hintKey ? handleQuickPaste : void 0}
           quickActionLabels={quickActionLabels}

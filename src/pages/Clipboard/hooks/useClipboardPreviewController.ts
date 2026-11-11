@@ -1,5 +1,4 @@
 import { useEventListener } from "ahooks";
-import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useSnapshot } from "valtio";
 import { showClipboardPreview } from "@/commands";
@@ -55,17 +54,9 @@ export function useClipboardPreviewController(
   const clipboardWindowVisibleRef = useRef(true);
   const previewSessionRef = useRef<PreviewSession | null>(null);
   const previewOpenRequestIdRef = useRef(0);
-  const previewMoveFrameRef = useRef<number | null>(null);
-  const previewMoveTargetRef = useRef<{
-    item: ClipboardItem;
-    pointerY: number;
-  } | null>(null);
   const keyboardPreviewFrameRef = useRef<number | null>(null);
   const keyboardPreviewTargetRef = useRef<KeyboardPreviewTarget | null>(null);
-  const pendingHoverTargetRef = useRef<{
-    item: ClipboardItem;
-    pointerY: number;
-  } | null>(null);
+  const pendingHoverTargetRef = useRef<ClipboardItem | null>(null);
   const settingsSnapshot = useSnapshot(settingsState);
   const previewSettings = settingsSnapshot.clipboard.preview;
 
@@ -105,11 +96,6 @@ export function useClipboardPreviewController(
         keyboardPreviewFrameRef.current = null;
       }
       keyboardPreviewTargetRef.current = null;
-      if (previewMoveFrameRef.current !== null) {
-        window.cancelAnimationFrame(previewMoveFrameRef.current);
-        previewMoveFrameRef.current = null;
-        previewMoveTargetRef.current = null;
-      }
     };
   }, []);
 
@@ -147,7 +133,6 @@ export function useClipboardPreviewController(
     previewOpenRequestIdRef.current += 1;
     cancelHoverPreview();
     cancelHoverHide();
-    cancelPreviewMoveFrame();
     cancelKeyboardPreviewFrame();
     commitPreviewSession(null);
     closeClipboardPreviewSilently(reason);
@@ -156,12 +141,7 @@ export function useClipboardPreviewController(
   /**
    * 卡片指针进入：keyboard 预览直接复用键盘重定向；hover 预览按延迟打开或重定向。
    */
-  const handleItemPointerEnter = (
-    item: ClipboardItem,
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
-    const pointerY = event.clientY;
-
+  const handleItemPointerEnter = (item: ClipboardItem) => {
     onHoverSelect(item.id);
 
     if (!clipboardWindowVisibleRef.current) return;
@@ -182,52 +162,14 @@ export function useClipboardPreviewController(
     if (previewSessionRef.current?.trigger === "hover") {
       if (previewSessionRef.current.itemId === item.id) return;
 
-      scheduleHoverPreviewOpen(item, pointerY, 0);
+      scheduleHoverPreviewOpen(item, 0);
       return;
     }
 
     scheduleHoverPreviewOpen(
       item,
-      pointerY,
       HOVER_DELAY_MS[previewSettings.hoverDelayMs],
     );
-  };
-
-  /**
-   * Hover 预览打开后，同一卡片内移动鼠标会持续重定向锚点和预览卡片。
-   */
-  const handleItemPointerMove = (
-    item: ClipboardItem,
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
-    const pointerY = event.clientY;
-
-    if (hoverTimerRef.current !== null) {
-      pendingHoverTargetRef.current = { item, pointerY };
-    }
-
-    if (previewSessionRef.current?.trigger !== "hover") return;
-    if (previewSessionRef.current.itemId !== item.id) return;
-
-    previewMoveTargetRef.current = {
-      item,
-      pointerY,
-    };
-
-    if (previewMoveFrameRef.current !== null) return;
-
-    previewMoveFrameRef.current = window.requestAnimationFrame(() => {
-      previewMoveFrameRef.current = null;
-
-      const target = previewMoveTargetRef.current;
-      previewMoveTargetRef.current = null;
-
-      if (!target) return;
-      if (previewSessionRef.current?.trigger !== "hover") return;
-      if (previewSessionRef.current.itemId !== target.item.id) return;
-
-      void openPreviewForItem(target.item, "hover", target.pointerY);
-    });
   };
 
   /**
@@ -322,14 +264,10 @@ export function useClipboardPreviewController(
   /**
    * 等待卡片完成 hover 布局后，再判断是否需要显示悬停预览。
    */
-  function scheduleHoverPreviewOpen(
-    item: ClipboardItem,
-    pointerY: number,
-    delay: number,
-  ) {
+  function scheduleHoverPreviewOpen(item: ClipboardItem, delay: number) {
     cancelHoverPreview();
     cancelHoverHide();
-    pendingHoverTargetRef.current = { item, pointerY };
+    pendingHoverTargetRef.current = item;
 
     hoverTimerRef.current = window.setTimeout(() => {
       hoverTimerRef.current = null;
@@ -340,16 +278,16 @@ export function useClipboardPreviewController(
       const target = pendingHoverTargetRef.current;
       pendingHoverTargetRef.current = null;
 
-      if (!target || target.item.id !== item.id) return;
+      if (!target || target.id !== item.id) return;
 
-      if (shouldSkipHoverPreview(target.item)) {
+      if (shouldSkipHoverPreview(target)) {
         if (previewSessionRef.current?.trigger === "hover") {
           closePreview("fullyVisibleText");
         }
         return;
       }
 
-      void openPreviewForItem(target.item, "hover", target.pointerY);
+      void openPreviewForItem(target, "hover");
     }, delay);
   }
 
@@ -393,7 +331,6 @@ export function useClipboardPreviewController(
   const openPreviewForItem = async (
     item: ClipboardItem,
     trigger: PreviewTrigger,
-    pointerY?: number,
   ) => {
     if (!clipboardWindowVisibleRef.current) return;
 
@@ -412,7 +349,6 @@ export function useClipboardPreviewController(
       const state = await showClipboardPreview(item.id, {
         height: rect.height,
         left: rect.left,
-        pointerY,
         top: rect.top,
         width: rect.width,
       });
@@ -463,18 +399,6 @@ export function useClipboardPreviewController(
       closeHoverPreview(reason);
     }, HOVER_HIDE_BUFFER_MS);
   };
-
-  /**
-   * 取消等待中的 mousemove retarget 帧。
-   */
-  function cancelPreviewMoveFrame() {
-    if (previewMoveFrameRef.current === null) return;
-
-    window.cancelAnimationFrame(previewMoveFrameRef.current);
-    previewMoveFrameRef.current = null;
-    previewMoveTargetRef.current = null;
-    pendingHoverTargetRef.current = null;
-  }
 
   /**
    * 方向键会先触发虚拟列表滚动，等待目标卡片位置稳定后再重定向预览。
@@ -600,7 +524,6 @@ export function useClipboardPreviewController(
     closePreview,
     handleItemPointerEnter,
     handleItemPointerLeave,
-    handleItemPointerMove,
     handleKeyboardPreviewMove,
     handlePreviewAreaPointerLeave,
     handlePreviewSpaceDown,

@@ -37,7 +37,6 @@ const PREVIEW_PANEL_WIDTH: f64 = 480.0;
 const PREVIEW_PANEL_HEIGHT: f64 = 480.0;
 const PREVIEW_PANEL_GAP: f64 = 40.0;
 const PREVIEW_PANEL_MARGIN: f64 = 32.0;
-const PREVIEW_POINTER_ANCHOR_SIZE: f64 = 1.0;
 const PREVIEW_HIDE_DELAY_MS: u64 = 180;
 
 static PREVIEW_REQUEST_ID: AtomicU64 = AtomicU64::new(0);
@@ -68,7 +67,6 @@ pub struct PreviewAnchorRect {
     pub top: f64,
     pub width: f64,
     pub height: f64,
-    pub pointer_y: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -327,11 +325,6 @@ fn validate_anchor(anchor: &PreviewAnchorRect) -> Result<()> {
     if !values.iter().all(|value| value.is_finite()) || anchor.width <= 0.0 || anchor.height <= 0.0
     {
         return Err(anyhow::anyhow!("preview anchor is invalid").into());
-    }
-    if let Some(pointer_y) = anchor.pointer_y {
-        if !pointer_y.is_finite() {
-            return Err(anyhow::anyhow!("preview pointer is invalid").into());
-        }
     }
 
     Ok(())
@@ -630,43 +623,22 @@ fn resolve_source_rect(
             width: clipboard_window.width as f64 / scale_factor,
             height: clipboard_window.height as f64 / scale_factor,
         };
-        let source = PreviewRect {
+        PreviewRect {
             left: main_rect.left + anchor.left,
             top: main_rect.top + anchor.top,
             width: anchor.width,
             height: anchor.height,
-        };
-
-        let pointer_y = anchor.pointer_y.map(|y| main_rect.top + y);
-
-        resolve_pointer_anchor_rect(source, pointer_y)
+        }
     } else {
-        let source = PreviewRect {
+        PreviewRect {
             left: anchor.left,
             top: anchor.top,
             width: anchor.width,
             height: anchor.height,
-        };
-
-        resolve_pointer_anchor_rect(source, anchor.pointer_y)
+        }
     };
 
     intersect_rect(source, overlay_rect).unwrap_or_else(|| clamp_rect(source, overlay_rect))
-}
-
-fn resolve_pointer_anchor_rect(source: PreviewRect, pointer_y: Option<f64>) -> PreviewRect {
-    let Some(pointer_y) = pointer_y else {
-        return source;
-    };
-    let center_y = pointer_y.clamp(source.top, source.bottom());
-    let top = center_y - PREVIEW_POINTER_ANCHOR_SIZE / 2.0;
-
-    PreviewRect {
-        left: source.left,
-        top,
-        width: source.width,
-        height: PREVIEW_POINTER_ANCHOR_SIZE,
-    }
 }
 
 fn resolve_panel_rect(
@@ -887,7 +859,6 @@ mod tests {
         };
         let anchor = PreviewAnchorRect {
             left: 20.0,
-            pointer_y: None,
             top: 30.0,
             width: 100.0,
             height: 40.0,
@@ -925,7 +896,6 @@ mod tests {
         };
         let anchor = PreviewAnchorRect {
             left: -8.0,
-            pointer_y: None,
             top: 40.0,
             width: 120.0,
             height: 80.0,
@@ -948,7 +918,7 @@ mod tests {
     }
 
     #[test]
-    fn follows_pointer_y_inside_clipboard_card() {
+    fn keeps_clipboard_card_vertical_center() {
         let work_area = PhysicalRect {
             position: PhysicalPosition::new(100, 50),
             size: PhysicalSize::new(2400, 1600),
@@ -961,7 +931,6 @@ mod tests {
         };
         let anchor = PreviewAnchorRect {
             left: 20.0,
-            pointer_y: Some(92.0),
             top: 40.0,
             width: 120.0,
             height: 100.0,
@@ -980,8 +949,9 @@ mod tests {
         );
 
         assert_eq!(source.left, 120.0);
-        assert_eq!(source.top, 191.5);
+        assert_eq!(source.top, 140.0);
         assert_eq!(source.width, 120.0);
-        assert_eq!(source.height, PREVIEW_POINTER_ANCHOR_SIZE);
+        assert_eq!(source.height, 100.0);
+        assert_eq!(source.center_y(), 190.0);
     }
 }

@@ -1,7 +1,7 @@
 import { useMount } from "ahooks";
 import { Spin } from "antd";
 import { motion } from "motion/react";
-import { type FC, useRef, useState } from "react";
+import { type FC, useState } from "react";
 import { useSnapshot } from "valtio";
 import {
   type ClipboardPreviewState,
@@ -63,7 +63,6 @@ const Preview: FC = () => {
   const [previewState, setPreviewState] =
     useState<ClipboardPreviewState | null>(null);
   const [payloadResetToken, setPayloadResetToken] = useState(0);
-  const panelMeasureRef = useRef<HTMLDivElement>(null);
   const { clipboard } = useSnapshot(settingsState);
   const redactSecrets = clipboard.sensitive.redactSecrets;
   const renderState = usePreviewRenderState(previewState);
@@ -71,7 +70,8 @@ const Preview: FC = () => {
     previewState,
     payloadResetToken,
   );
-  const measuredPanelSize = useMeasuredPanelSize(panelMeasureRef);
+  const { measureRef: panelMeasureRef, size: measuredPanelSize } =
+    useMeasuredPanelSize();
   const active = previewState !== null;
   const visibleState = previewState ?? renderState;
   const effectivePanelSize = visibleState
@@ -86,10 +86,13 @@ const Preview: FC = () => {
   const connector = visibleState
     ? resolveConnector(visibleState.layout.sourceRect, panelRect)
     : EMPTY_CONNECTOR;
+  const panelLayoutReady =
+    payload?.id === visibleState?.itemId &&
+    hasMeasuredPanelSize(effectivePanelSize);
   const motionLayout = usePreviewMotion(
     active,
     visibleState?.sessionId ?? null,
-    hasMeasuredPanelSize(effectivePanelSize),
+    panelLayoutReady,
     panelRect,
     connector,
   );

@@ -37,7 +37,6 @@ interface ClipboardCardProps {
   onOpenLink?: () => void;
   onPointerEnter?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerLeave?: () => void;
-  onPointerMove?: (event: PointerEvent<HTMLDivElement>) => void;
   onMouseDown?: (event: MouseEvent<HTMLDivElement>) => void;
   onAuxClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onDoubleClick?: (event: MouseEvent<HTMLDivElement>) => void;
@@ -65,7 +64,6 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
     onOpenLink,
     onPointerEnter,
     onPointerLeave,
-    onPointerMove,
     onMouseDown,
     onAuxClick,
     onDoubleClick,
@@ -150,7 +148,6 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
       onMouseDown={onMouseDown}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
-      onPointerMove={onPointerMove}
       ref={rootRef}
       role="option"
       tabIndex={-1}

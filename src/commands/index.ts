@@ -38,7 +38,6 @@ interface AppError {
 
 export interface PreviewAnchorRect {
   left: number;
-  pointerY?: number;
   top: number;
   width: number;
   height: number;
