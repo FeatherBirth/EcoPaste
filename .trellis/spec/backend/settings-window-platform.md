@@ -970,18 +970,30 @@ monitors can change both monitor bounds and per-window scale factors.
 
 ### 2. Signatures
 
-- Persisted `WindowState`: `{ x, y, width, height, scaleFactor? }`.
+- Persisted `WindowState`:
+  `{ x, y, width, height, scaleFactor?, logicalWidth?, logicalHeight? }`.
 - `window::remember_window_metrics(window: &Window)`.
+- `window::handle_window_moved(window: &Window)`.
+- `window::normalize_window_size_for_current_monitor(window: &WebviewWindow)`.
 - `window::handle_scale_factor_changed(window, scaleFactor, suggestedSize)`.
 - `window::constrain_window_to_current_monitor(window)`.
 - Tauri events: `WindowEvent::Moved`, `Resized`, `ScaleFactorChanged`.
 
 ### 3. Contracts
 
-- Persist physical position, physical inner size, and the scale factor used to
-  capture it. Missing `scaleFactor` remains valid for legacy state files.
-- On restore and scale change, derive logical size from
-  `physical_size / saved_scale`, then apply the target monitor's current scale.
+- Persist physical position, physical inner size, source scale, and explicit
+  logical dimensions. Missing logical/scale fields remain valid for legacy
+  state files.
+- The clipboard restore target monitor follows its positioning policy:
+  `FollowCursor` and `Center` use the cursor monitor; `Remember` uses the saved
+  monitor when available.
+- Explicit logical dimensions are the authoritative anchor. On restore and
+  scale change, convert them to the target monitor's physical scale.
+- A programmatic cross-monitor move must be normalized again after positioning.
+  Query the monitor containing the final outer rectangle, because Tauri may not
+  emit `ScaleFactorChanged` for that move.
+- `Moved` events compare actual scale and physical size with the saved logical
+  size before replacing the live metrics. This bounds late Windows DPI re-layout.
 - Clipboard-window restore and live scale handling enforce the configured
   `360x600` logical minimum before monitor clamping. Legacy state has no saved
   scale, so its physical pixels alone could otherwise render at half size on a
@@ -997,6 +1009,10 @@ monitors can change both monitor bounds and per-window scale factors.
 
 - Legacy state without scale -> use the current scale without reinterpretation.
 - Saved scale differs from current scale -> preserve logical size.
+- Explicit logical size exists and Windows suggests a different same-scale size
+  -> explicit logical size wins.
+- Programmatic move changes destination DPI without an event -> post-placement
+  monitor lookup reapplies the logical size.
 - Legacy or stale state yields a physical size below `360x600 * current_scale`
   -> raise it to the logical minimum before monitor clamping.
 - Window exceeds monitor bounds -> shrink to bounds and clamp position.
@@ -1008,6 +1024,8 @@ monitors can change both monitor bounds and per-window scale factors.
 - Good: 540x900 physical at 150% restores as 360x600 physical at 100%.
 - Good: legacy 360x600 physical state restores as 720x1200 physical at 200%,
   rather than a half-size clipboard window.
+- Good: a roughly 389x612 logical clipboard window is about 778x1224 physical
+  on a 200% display and 400x618 on a 100% display.
 - Good: Remote Desktop lowers the logical viewport and a 960x600 preference
   window is clamped while its content remains scrollable.
 - Base: same-scale restore keeps the user's chosen size and position.
@@ -1020,6 +1038,10 @@ monitors can change both monitor bounds and per-window scale factors.
 - Unit-test legacy state with no scale falling back to current pixels.
 - Unit-test clipboard minimum enforcement for legacy scale metadata and stale
   saved sizes, plus no changes to other window labels.
+- Unit-test explicit logical dimensions overriding stale physical metrics and a
+  late same-scale suggested size.
+- Probe the real HWND with `GetWindowRect`/`GetDpiForWindow` on 100% and 200%
+  displays after show and after moving in both directions.
 - Manual Remote Desktop test: connect at a different resolution/DPI, move the
   window between monitors, reopen the clipboard window before dragging it, and
   verify size and position remain fully visible.

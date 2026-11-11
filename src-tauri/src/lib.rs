@@ -276,7 +276,10 @@ pub fn run() {
                     api.prevent_close();
                 }
             }
-            WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+            WindowEvent::Moved(_) => {
+                window::handle_window_moved(window);
+            }
+            WindowEvent::Resized(_) => {
                 window::remember_window_metrics(window);
             }
             WindowEvent::ScaleFactorChanged {

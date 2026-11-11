@@ -11,7 +11,7 @@ pub mod windows;
 #[cfg(target_os = "macos")]
 pub use macos::handle_reopen;
 pub use state::WindowStateStore;
-pub(crate) use state::{handle_scale_factor_changed, remember_window_metrics};
+pub(crate) use state::{handle_scale_factor_changed, handle_window_moved, remember_window_metrics};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
@@ -251,13 +251,19 @@ fn apply_clipboard_window_layout(app_handle: &AppHandle) -> Result<()> {
     let snap = store.snapshot();
     let position = snap.clipboard.window.position;
 
-    let _ = state::restore_window_state(app_handle, CLIPBOARD_WINDOW_LABEL)?;
+    let _ = state::restore_window_state_for_position(app_handle, CLIPBOARD_WINDOW_LABEL, position)?;
+
+    let window = get_window(app_handle, CLIPBOARD_WINDOW_LABEL)?;
+    if !matches!(position, WindowPosition::Remember) {
+        position::position_window(&window, position)?;
+    }
+
+    state::normalize_window_size_for_current_monitor(&window)?;
 
     if matches!(position, WindowPosition::Remember) {
         return Ok(());
     }
 
-    let window = get_window(app_handle, CLIPBOARD_WINDOW_LABEL)?;
     position::position_window(&window, position)
 }
 

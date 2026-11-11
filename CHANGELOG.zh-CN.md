@@ -1,5 +1,12 @@
 # 更新日志
 
+## [1.5.2](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.1...v1.5.2) (2026-11-11)
+
+### 🐛 问题修复
+
+- 修复剪贴板窗口在不同缩放比例显示器之间打开或移动时无法保持逻辑尺寸的问题。
+- 修复 Windows 未发送 DPI 缩放事件时，程序化跨屏移动后窗口尺寸错误的问题。
+
 ## [1.5.1](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.0...v1.5.1) (2026-11-10)
 
 ### ✨ 新功能
