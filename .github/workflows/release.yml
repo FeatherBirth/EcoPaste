@@ -10,6 +10,11 @@ name: Release CI
         description: "Release tag to build, for example v0.6.0-beta.4"
         required: true
         type: string
+      sign_build:
+        description: "Sign updater artifacts with the configured Tauri private key"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -262,10 +267,10 @@ jobs:
           CI: false
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           PLATFORM: ${{ matrix.os }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ (github.event_name == 'push' || inputs.sign_build) && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ (github.event_name == 'push' || inputs.sign_build) && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ (github.event_name == 'push' || inputs.sign_build) && '' || '--no-sign' }}
           prerelease: ${{ needs.release-metadata.outputs.prerelease }}
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseId: ${{ needs.release-metadata.outputs.release_id }}
