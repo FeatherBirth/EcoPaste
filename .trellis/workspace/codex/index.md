@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-11-10
+- **Total Sessions**: 6
+- **Last Active**: 2026-11-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~174 | Active |
+| `journal-1.md` | ~207 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-11-11 | Mixed-DPI clipboard window sizing | `90d45b6` | `codex/clipboard-filter-preview-refinements` |
 | 5 | 2026-11-10 | GitHub one-command Windows installer | `a513ea4`, `48c5e7b` | `codex/clipboard-filter-preview-refinements` |
 | 4 | 2026-11-10 | Windows in-place upgrade and startup hardening | `5fd0f63` | `codex/clipboard-filter-preview-refinements` |
 | 3 | 2026-11-10 | Office image and text clipboard fallback | `9cdba05` | `codex/clipboard-filter-preview-refinements` |

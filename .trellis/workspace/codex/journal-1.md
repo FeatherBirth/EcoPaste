@@ -172,3 +172,36 @@ Published v1.5.1 stable Windows release assets and a checksum-verified PowerShel
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Mixed-DPI clipboard window sizing
+
+**Date**: 2026-11-11
+**Task**: Mixed-DPI clipboard window sizing
+**Branch**: `codex/clipboard-filter-preview-refinements`
+
+### Summary
+
+Added explicit logical window dimensions, position-aware restore, post-placement monitor normalization, and moved-event DPI correction. Verified 200% to 100% and reverse drags on real displays; released v1.5.2 with stable GitHub installer assets and checksum-verified PowerShell bootstrap.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `90d45b6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
