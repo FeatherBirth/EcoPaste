@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.3](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.2...v1.5.3) (2026-11-11)
+
+### 🐛 Bug Fixes
+
+- Keep clipboard hover previews stable while the pointer moves within the active item.
+- Anchor preview connectors to the vertical center of the clipboard item edge.
+- Fit the first image preview to its complete content size without requiring another pointer event.
+
 ## [1.5.2](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.1...v1.5.2) (2026-11-11)
 
 ### 🐛 Bug Fixes
