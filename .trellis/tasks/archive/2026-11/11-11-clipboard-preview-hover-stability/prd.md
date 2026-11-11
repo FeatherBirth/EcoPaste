@@ -43,6 +43,15 @@
 - [x] 文本、文件、单图片文件预览仍能正常显示，滚动预览内容不受影响。
 - [x] `pnpm lint`、`pnpm tsc`、`cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo test` 通过。
 - [x] 在 Windows 桌面实际验证同 item 悬停、跨 item 切换、左右侧连接线以及首次图片预览主路径。
+- [x] 生成 Windows x64 NSIS 安装包。
+- [x] 发布 GitHub Release `v1.5.3`，包含 macOS 与 Windows 构建资产。
+
+## Delivery
+
+- Local unsigned package: `src-tauri/target/release/bundle/nsis/EcoPaste_1.5.3_x64-setup.exe`
+- Local SHA-256: `c3672c3162e0fbd626be4c21e31f42ca5e0b24fb6608fcf67dbfc6276f2930aa`
+- GitHub release: `https://github.com/FeatherBirth/EcoPaste/releases/tag/v1.5.3`
+- Release assets: Windows x64/ARM64 installers, macOS Intel/Apple Silicon DMGs and updater archives, checksum, and one-command installer.
 
 ## Out of Scope
 
