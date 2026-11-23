@@ -3,6 +3,7 @@ use crate::i18n::keys::ClipboardMenuKey as Key;
 /// 返回美式英文剪贴板列表项右键菜单文案。
 pub fn label(key: Key) -> &'static str {
     match key {
+        Key::Select => "Select",
         Key::Paste => "Paste",
         Key::PasteAsPlainText => "Paste as Plain Text",
         Key::PasteAsPath => "Paste as Path",

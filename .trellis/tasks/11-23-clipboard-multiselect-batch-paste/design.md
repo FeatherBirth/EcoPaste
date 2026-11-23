@@ -36,6 +36,7 @@ selectedIndexes: Set<number>;     // all explicitly selected rows
 - outside selection mode, normal click clears the set and keeps historic
   single-click paste/copy;
 - in selection mode, normal click adds the row and does not paste;
+- a repeated normal click on a selected row toggles it off;
 - Ctrl/Cmd+click: toggle target index, set focus and anchor to target;
 - Shift+click: replace selection with anchor..target when no Ctrl/Cmd;
 - Ctrl/Cmd+Shift+click: add anchor..target to the existing set;
@@ -50,6 +51,16 @@ Selection is cleared on:
 - window open reset where the list itself is reset;
 - deleted items;
 - leaving the clipboard window (fresh session on reopen).
+
+Availability:
+
+- text rows are always batch-selectable;
+- image/file rows require the experimental mixed setting;
+- a files row is selectable only when every stored path exists;
+- unavailable rows are visually muted and skipped by Shift ranges.
+
+The native context menu and optional configured quick action both expose
+`select`, which enters selection mode and adds the target row.
 
 ## Rendering
 

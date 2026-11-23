@@ -394,6 +394,7 @@ impl Default for Content {
                 ItemAction::Delete,
             ],
             item_action_order: vec![
+                ItemAction::Select,
                 ItemAction::Paste,
                 ItemAction::PastePlain,
                 ItemAction::PastePath,
@@ -467,6 +468,7 @@ pub enum MiddleClickAction {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ItemAction {
+    Select,
     Paste,
     PastePlain,
     PastePath,

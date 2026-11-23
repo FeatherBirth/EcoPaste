@@ -33,6 +33,7 @@ export interface ItemActionPresentation {
 }
 
 export const ITEM_ACTION_ORDER: ItemAction[] = [
+  "select",
   "paste",
   "pastePlain",
   "pastePath",
@@ -93,6 +94,10 @@ export const ITEM_ACTION_META: Record<ItemAction, ItemActionMeta> = {
   reveal: {
     icon: "i-lucide:folder-open",
     labelKey: "quickActions.reveal",
+  },
+  select: {
+    icon: "i-lucide:list-checks",
+    labelKey: "quickActions.select",
   },
   sendEmail: {
     icon: "i-lucide:mail",
@@ -239,6 +244,8 @@ export function filterAvailableItemActions(
  */
 export function isItemActionAvailable(action: ItemAction, item: ClipboardItem) {
   switch (action) {
+    case "select":
+      return hasClipboardAction(item, "select");
     case "copyPlain":
       return item.kind !== "image" && hasClipboardAction(item, "copy");
     case "openLink":

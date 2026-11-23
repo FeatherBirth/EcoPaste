@@ -105,6 +105,7 @@ const List: FC = () => {
   const itemElementMapRef = useRef(new Map<string, HTMLDivElement>());
   const closePreviewRef = useRef<(reason: string) => void>(() => {});
   const displaySettingsMountedRef = useRef(false);
+  const mixedBatchSettingMountedRef = useRef(false);
   const keywordRef = useRef("");
   const reloadCurrentRangeRef = useRef<() => void>(() => {});
   const deferredReloadRef = useRef(false);
@@ -126,6 +127,8 @@ const List: FC = () => {
   const deletePinnedItems = settings.clipboard.content.deletePinnedItems;
   const deleteFavoriteItemsOnlyInFavoriteGroup =
     settings.clipboard.content.deleteFavoriteItemsOnlyInFavoriteGroup;
+  const mixedBatchPaste =
+    settings.clipboard.content.experimentalMixedBatchPaste;
   const { fileMaxCount } = display;
   const showOriginalPreview = settings.clipboard.content.showOriginalPreview;
   const quickActionLabels = buildItemActionLabels(t);
@@ -187,6 +190,30 @@ const List: FC = () => {
     });
     setSelectionAnchorIndex(null);
   }, [selection.active]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-filter when mixed mode changes
+  useEffect(() => {
+    if (mixedBatchPaste) return;
+
+    setSelectedIndexes((current) => {
+      const textOnly = new Set<number>();
+      for (const index of current) {
+        if (getItem(index)?.kind === "text") textOnly.add(index);
+      }
+      return textOnly.size === current.size ? current : textOnly;
+    });
+  }, [mixedBatchPaste]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload through the latest range callback
+  useEffect(() => {
+    if (!mixedBatchSettingMountedRef.current) {
+      mixedBatchSettingMountedRef.current = true;
+      return;
+    }
+
+    clearMultiSelection();
+    reloadCurrentRangeRef.current();
+  }, [mixedBatchPaste]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: snapshot 作触发器，不需在回调内读取
   useEffect(() => {
@@ -486,6 +513,7 @@ const List: FC = () => {
     const wantsSelection = selection.active || commandKey || event.shiftKey;
 
     if (!wantsSelection) return false;
+    if (!isClipboardItemBatchSelectable(item, mixedBatchPaste)) return true;
 
     setClipboardSelectionMode(true);
     setSelectedId(item.id);
@@ -495,7 +523,13 @@ const List: FC = () => {
         selectionAnchorIndex ??
         getItemIndexById(selectedId ?? "") ??
         firstVisibleIndex;
-      const range = createSelectionRange(anchor, index);
+      const range = createSelectionRange(anchor, index, (candidateIndex) => {
+        const candidate = getItem(candidateIndex);
+        return (
+          candidate !== null &&
+          isClipboardItemBatchSelectable(candidate, mixedBatchPaste)
+        );
+      });
 
       setSelectedIndexes((current) => {
         return commandKey ? unionSelection(current, range) : range;
@@ -520,7 +554,11 @@ const List: FC = () => {
 
     setSelectedIndexes((current) => {
       const next = new Set(current);
-      next.add(index);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
       return next;
     });
     if (selectionAnchorIndex === null) setSelectionAnchorIndex(index);
@@ -530,12 +568,21 @@ const List: FC = () => {
   /**
    * Paste all selected rows in display order and clear the transient selection.
    */
-  async function handleBatchPaste() {
-    if (selectedIndexes.size === 0) return;
+  async function handleBatchPaste(indexesOverride?: number[]) {
+    const candidates = indexesOverride ?? [...selectedIndexes];
+    if (candidates.length === 0) return;
 
-    const indexes = [...selectedIndexes].sort((left, right) => {
-      return left - right;
-    });
+    const indexes = candidates
+      .filter((index) => {
+        const item = getItem(index);
+        return (
+          item !== null && isClipboardItemBatchSelectable(item, mixedBatchPaste)
+        );
+      })
+      .sort((left, right) => {
+        return left - right;
+      });
+    if (indexes.length === 0) return;
 
     closePreview("batchPaste");
 
@@ -543,7 +590,7 @@ const List: FC = () => {
       const result = await pasteClipboardItems(
         clipboardQuery,
         indexes,
-        settings.clipboard.content.experimentalMixedBatchPaste,
+        mixedBatchPaste,
       );
       if (result.failedIndex !== null) {
         getMessageApi().error(
@@ -557,6 +604,26 @@ const List: FC = () => {
     } catch {
       // The command wrapper owns error logging and user feedback.
     }
+  }
+
+  /**
+   * Enter multi-select mode and add one item, used by menu and quick actions.
+   */
+  function selectItemForBatch(item: ClipboardItem) {
+    if (!isClipboardItemBatchSelectable(item, mixedBatchPaste)) return;
+
+    const index = getItemIndexById(item.id);
+    if (index === null) return;
+
+    closePreview("selectItem");
+    setClipboardSelectionMode(true);
+    setSelectedId(item.id);
+    setSelectedIndexes((current) => {
+      const next = new Set(current);
+      next.add(index);
+      return next;
+    });
+    if (selectionAnchorIndex === null) setSelectionAnchorIndex(index);
   }
 
   /**
@@ -673,6 +740,9 @@ const List: FC = () => {
     if (!target) return;
 
     switch (action) {
+      case "select":
+        selectItemForBatch(target);
+        return;
       case "paste":
         closePreview("paste");
         pasteClipboardItem(target.id, false);
@@ -1012,6 +1082,10 @@ const List: FC = () => {
       relativeIndex >= 0 && relativeIndex < 10
         ? KEY_HINTS[relativeIndex]
         : void 0;
+    const batchSelectable = isClipboardItemBatchSelectable(
+      item,
+      mixedBatchPaste,
+    );
 
     const handleQuickPaste = () => {
       closePreview("quickPaste");
@@ -1031,6 +1105,9 @@ const List: FC = () => {
       if (action === "delete" && !canDeleteItem(item)) return;
 
       switch (action) {
+        case "select":
+          selectItemForBatch(item);
+          return;
         case "paste":
           closePreview("quickPaste");
           await pasteClipboardItem(item.id, false);
@@ -1146,8 +1223,10 @@ const List: FC = () => {
     };
 
     const handleDoubleClick = () => {
-      if (selection.active && selectedIndexes.size > 0) {
-        void handleBatchPaste();
+      if (selection.active && !batchSelectable) return;
+
+      if (selection.active) {
+        void handleBatchPaste([...selectedIndexes, index]);
         return;
       }
 
@@ -1167,11 +1246,13 @@ const List: FC = () => {
       item.availableActions,
       item,
       canDeleteItem,
+      batchSelectable,
     );
     const visibleQuickActions = getAllowedItemActions(
       quickActions,
       item,
       canDeleteItem,
+      batchSelectable,
     );
 
     return (
@@ -1180,9 +1261,14 @@ const List: FC = () => {
           availableActions={availableActions}
           hintKey={hintKey}
           isFocused={
-            selectedId === null
-              ? index === firstVisibleIndex
-              : item.id === selectedId
+            selection.active
+              ? batchSelectable &&
+                (selectedId === null
+                  ? index === firstVisibleIndex
+                  : item.id === selectedId)
+              : selectedId === null
+                ? index === firstVisibleIndex
+                : item.id === selectedId
           }
           isLinkActive={isModifierPressed}
           isSelected={
@@ -1192,6 +1278,7 @@ const List: FC = () => {
                 ? index === firstVisibleIndex
                 : item.id === selectedId
           }
+          isSelectionDisabled={selection.active && !batchSelectable}
           item={item}
           onAuxClick={handleAuxClick}
           onDoubleClick={handleDoubleClick}
@@ -1288,13 +1375,17 @@ const List: FC = () => {
 /**
  * Build the inclusive display-index range used by Shift-click.
  */
-function createSelectionRange(anchor: number, target: number) {
+function createSelectionRange(
+  anchor: number,
+  target: number,
+  isSelectable: (index: number) => boolean,
+) {
   const start = Math.min(anchor, target);
   const end = Math.max(anchor, target);
   const range = new Set<number>();
 
   for (let index = start; index <= end; index += 1) {
-    range.add(index);
+    if (isSelectable(index)) range.add(index);
   }
 
   return range;
@@ -1475,11 +1566,12 @@ function getAllowedClipboardActions(
   actions: ClipboardAction[] | undefined,
   item: ClipboardItem,
   canDeleteItem: (item: ClipboardItem) => boolean,
+  batchSelectable: boolean,
 ) {
-  if (canDeleteItem(item)) return actions;
-
-  return actions?.filter((action) => {
-    return action !== "delete";
+  return (actions ?? []).filter((action) => {
+    if (action === "delete" && !canDeleteItem(item)) return false;
+    if (action === "select" && !batchSelectable) return false;
+    return true;
   });
 }
 
@@ -1506,12 +1598,27 @@ function getAllowedItemActions(
   actions: readonly ItemAction[],
   item: ClipboardItem,
   canDeleteItem: (item: ClipboardItem) => boolean,
+  batchSelectable: boolean,
 ) {
-  if (canDeleteItem(item)) return [...actions];
-
   return actions.filter((action) => {
-    return action !== "delete";
+    if (action === "delete" && !canDeleteItem(item)) return false;
+    if (action === "select" && !batchSelectable) return false;
+    return true;
   });
+}
+
+/**
+ * Text batches are always available. Images/files require the experimental
+ * mixed setting, and Rust omits `select` when any file path is missing.
+ */
+function isClipboardItemBatchSelectable(
+  item: ClipboardItem,
+  mixedBatchPaste: boolean,
+) {
+  if (item.kind === "text") return true;
+  if (!mixedBatchPaste) return false;
+  if (item.kind === "image") return true;
+  return item.availableActions?.includes("select") ?? false;
 }
 
 /**

@@ -20,6 +20,7 @@ export type ClipboardPlatform = "macos" | "windows";
  * 顺序由后端给出，前端按此顺序渲染。
  */
 export type ClipboardAction =
+  | "select"
   | "paste"
   | "pasteAsPlainText"
   | "pasteAsPath"

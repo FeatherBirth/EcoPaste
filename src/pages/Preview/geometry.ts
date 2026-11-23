@@ -1,4 +1,7 @@
-import type { ClipboardPreviewRect } from "@/commands";
+import type {
+  ClipboardPreviewPlacement,
+  ClipboardPreviewRect,
+} from "@/commands";
 
 type ConnectorSide = "left" | "right" | "top" | "bottom";
 
@@ -34,7 +37,18 @@ const MAX_CONTROL_DISTANCE = 64;
 export function resolveConnector(
   sourceRect: ClipboardPreviewRect,
   targetRect: ClipboardPreviewRect,
+  placement?: ClipboardPreviewPlacement,
+  clipboardWindowRect?: ClipboardPreviewRect | null,
 ): PreviewConnector {
+  if (placement && clipboardWindowRect) {
+    return resolvePlacedConnector(
+      sourceRect,
+      targetRect,
+      placement,
+      clipboardWindowRect,
+    );
+  }
+
   const candidates = buildAnchorCandidates(sourceRect).flatMap((source) => {
     return buildAnchorCandidates(targetRect).map((target) => {
       return { score: scoreCandidate(source, target), source, target };
@@ -67,6 +81,81 @@ export function resolveConnector(
     target,
     targetDot: target,
     targetSide: best.target.side,
+  };
+}
+
+/**
+ * Anchor left/right connectors on the clipboard-window border instead of the
+ * card border, so the dot never intrudes into the list item padding.
+ */
+function resolvePlacedConnector(
+  sourceRect: ClipboardPreviewRect,
+  targetRect: ClipboardPreviewRect,
+  placement: ClipboardPreviewPlacement,
+  clipboardWindowRect: ClipboardPreviewRect,
+): PreviewConnector {
+  const sourceY = sourceRect.top + sourceRect.height / 2;
+  const targetY = targetRect.top + targetRect.height / 2;
+  const sourceX = sourceRect.left + sourceRect.width / 2;
+  const targetX = targetRect.left + targetRect.width / 2;
+  let source: Point;
+  let target: Point;
+  let sourceSide: ConnectorSide;
+  let targetSide: ConnectorSide;
+
+  switch (placement) {
+    case "left":
+      source = { x: clipboardWindowRect.left, y: sourceY };
+      target = {
+        x: targetRect.left + targetRect.width,
+        y: targetY,
+      };
+      sourceSide = "left";
+      targetSide = "right";
+      break;
+    case "right":
+      source = {
+        x: clipboardWindowRect.left + clipboardWindowRect.width,
+        y: sourceY,
+      };
+      target = { x: targetRect.left, y: targetY };
+      sourceSide = "right";
+      targetSide = "left";
+      break;
+    case "bottom":
+      source = { x: sourceX, y: sourceRect.top + sourceRect.height };
+      target = { x: targetX, y: targetRect.top };
+      sourceSide = "bottom";
+      targetSide = "top";
+      break;
+    case "top":
+      source = { x: sourceX, y: sourceRect.top };
+      target = { x: targetX, y: targetRect.top + targetRect.height };
+      sourceSide = "top";
+      targetSide = "bottom";
+      break;
+  }
+
+  const distance = pointDistance(source, target);
+  const controlDistance = clamp(
+    distance * CONTROL_RATIO,
+    MIN_CONTROL_DISTANCE,
+    MAX_CONTROL_DISTANCE,
+  );
+  const control1 = project(source, normalForSide(sourceSide), controlDistance);
+  const control2 = project(target, normalForSide(targetSide), controlDistance);
+  const path = buildConnectorPath(source, control1, control2, target);
+
+  return {
+    control1,
+    control2,
+    path,
+    source,
+    sourceDot: source,
+    sourceSide,
+    target,
+    targetDot: target,
+    targetSide,
   };
 }
 

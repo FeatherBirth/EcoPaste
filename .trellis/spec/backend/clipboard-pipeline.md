@@ -117,6 +117,12 @@ simulate one paste. With the experimental mixed setting enabled, contiguous text
 rows remain merged while image/file rows are pasted as ordered segments; stop on
 the first failure and return `completed`/`total` plus the failed display index.
 
+The action list exposes `select` only for rows eligible for the batch: all text
+rows, mixed-mode images, and mixed-mode file rows whose every stored path still
+exists. React uses this action for missing-file eligibility and separately
+enforces the experimental setting so unavailable rows are muted and cannot enter
+Shift ranges.
+
 ```rust
 // Wrong: forcing Office text loses the native image representation.
 // Keep image capture and attach the plain-text fallback instead.

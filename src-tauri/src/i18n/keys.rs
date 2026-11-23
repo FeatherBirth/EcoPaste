@@ -1,5 +1,6 @@
 #[derive(Debug, Clone, Copy)]
 pub enum ClipboardMenuKey {
+    Select,
     Paste,
     PasteAsPlainText,
     PasteAsPath,

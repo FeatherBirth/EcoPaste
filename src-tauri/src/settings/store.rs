@@ -15,7 +15,7 @@ use tauri::AppHandle;
 use crate::core::{AppError, Result};
 
 use super::model::{
-    Language, Settings, WINDOW_OPEN_GROUP_PREFIX, WINDOW_OPEN_SELECTION_ALL,
+    ItemAction, Language, Settings, WINDOW_OPEN_GROUP_PREFIX, WINDOW_OPEN_SELECTION_ALL,
     WINDOW_OPEN_SELECTION_PRESERVE,
 };
 
@@ -81,9 +81,10 @@ impl SettingsStore {
             .context("failed to serialize current settings for merge")?;
         deep_merge(&mut merged, patch);
 
-        let next: Settings = serde_json::from_value(merged)
+        let mut next: Settings = serde_json::from_value(merged)
             .map_err(|err| AppError::Other(anyhow::anyhow!("invalid settings patch: {err}")))?;
 
+        normalize_settings(&mut next);
         validate_settings(&next)?;
 
         let path = self.path();
@@ -96,9 +97,10 @@ impl SettingsStore {
     pub fn replace_from_file(&self, path: &Path) -> Result<Settings> {
         let content =
             fs::read_to_string(path).with_context(|| format!("failed to read {path:?}"))?;
-        let next: Settings = serde_json::from_str(&content)
+        let mut next: Settings = serde_json::from_str(&content)
             .map_err(|err| AppError::Other(anyhow::anyhow!("invalid settings file: {err}")))?;
 
+        normalize_settings(&mut next);
         validate_settings(&next)?;
 
         let path = self.path();
@@ -156,11 +158,31 @@ fn load_from_disk(path: &Path) -> Option<Settings> {
         serde_json::from_str::<Settings>(&content)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
     }) {
-        Ok(settings) => Some(settings),
+        Ok(mut settings) => {
+            normalize_settings(&mut settings);
+            Some(settings)
+        }
         Err(err) => {
             log::warn!("settings file {path:?} unreadable, using defaults: {err}");
             Some(Settings::default())
         }
+    }
+}
+
+/// Add action options introduced after the settings file was written without
+/// enabling them automatically.
+fn normalize_settings(settings: &mut Settings) {
+    if !settings
+        .clipboard
+        .content
+        .item_action_order
+        .contains(&ItemAction::Select)
+    {
+        settings
+            .clipboard
+            .content
+            .item_action_order
+            .insert(0, ItemAction::Select);
     }
 }
 
@@ -351,6 +373,25 @@ mod tests {
             parsed.clipboard.window.select_group_on_open,
             crate::settings::WINDOW_OPEN_SELECTION_PRESERVE
         );
+    }
+
+    #[test]
+    fn normalize_appends_new_item_action_without_enabling_it() {
+        let mut settings = Settings::default();
+        settings
+            .clipboard
+            .content
+            .item_action_order
+            .retain(|action| *action != ItemAction::Select);
+        settings.clipboard.content.item_actions.clear();
+
+        normalize_settings(&mut settings);
+
+        assert_eq!(
+            settings.clipboard.content.item_action_order.first(),
+            Some(&ItemAction::Select)
+        );
+        assert!(settings.clipboard.content.item_actions.is_empty());
     }
 
     #[test]

@@ -26,6 +26,7 @@ pub const CLIPBOARD_MENU_ACTION_EVENT: &str = "clipboard://menu-action";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ClipboardMenuAction {
+    Select,
     Paste,
     PasteAsPlainText,
     PasteAsPath,
@@ -54,6 +55,7 @@ impl ClipboardMenuAction {
         use crate::i18n::clipboard_menu::Key;
 
         let key = match self {
+            Self::Select => Key::Select,
             Self::Paste => Key::Paste,
             Self::PasteAsPlainText => Key::PasteAsPlainText,
             Self::PasteAsPath => Key::PasteAsPath,
@@ -94,6 +96,7 @@ impl ClipboardMenuAction {
     /// 加速键文案（muda 与前端菜单共用 `"CmdOrCtrl+X"` 平台无关写法）。
     pub(super) fn accelerator(self) -> Option<&'static str> {
         match self {
+            Self::Select => None,
             Self::Paste => Some("Enter"),
             Self::PasteAsPlainText | Self::PasteAsPath => Some("CmdOrCtrl+Enter"),
             Self::Copy => Some("CmdOrCtrl+C"),
@@ -113,6 +116,7 @@ impl ClipboardMenuAction {
 /// 视觉分组：组间插入分隔线，组内顺序与组顺序即菜单展示顺序。两端共用。
 pub(super) const ACTION_GROUPS: &[&[ClipboardMenuAction]] = &[
     &[
+        ClipboardMenuAction::Select,
         ClipboardMenuAction::Paste,
         ClipboardMenuAction::PasteAsPlainText,
         ClipboardMenuAction::PasteAsPath,
@@ -208,6 +212,7 @@ mod native {
     impl ClipboardMenuAction {
         fn id(self) -> &'static str {
             match self {
+                Self::Select => "cim::select",
                 Self::Paste => "cim::paste",
                 Self::PasteAsPlainText => "cim::pasteAsPlainText",
                 Self::PasteAsPath => "cim::pasteAsPath",
@@ -227,6 +232,7 @@ mod native {
 
         fn from_id(id: &str) -> Option<Self> {
             const ALL: &[ClipboardMenuAction] = &[
+                ClipboardMenuAction::Select,
                 ClipboardMenuAction::Paste,
                 ClipboardMenuAction::PasteAsPlainText,
                 ClipboardMenuAction::PasteAsPath,

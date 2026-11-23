@@ -764,7 +764,10 @@ pub async fn list_clipboard_items(
         attach_color_preview(item);
         attach_display_created_at(item, &now);
         redact_sensitive_list_item(item, redact_sensitive);
-        item.available_actions = compute_available_actions(item);
+        item.available_actions = compute_available_actions(
+            item,
+            settings.clipboard.content.experimental_mixed_batch_paste,
+        );
         strip_image_plain_text_fallback(item);
     }
     let has_more = q.offset + (items.len() as i64) < total;
@@ -801,7 +804,10 @@ pub async fn get_clipboard_item(
         attach_color_preview(item);
         attach_display_created_at(item, &Local::now());
         redact_sensitive_list_item(item, redact_sensitive);
-        item.available_actions = compute_available_actions(item);
+        item.available_actions = compute_available_actions(
+            item,
+            settings.clipboard.content.experimental_mixed_batch_paste,
+        );
         strip_image_plain_text_fallback(item);
     }
     Ok(item)
@@ -968,9 +974,15 @@ fn attach_display_created_at(item: &mut ClipboardItem, now: &chrono::DateTime<Lo
 /// 按 `kind` / `sub_kind` 计算右键菜单可用动作，按建议展示顺序返回。
 /// 前端只负责把每个动作映射成 `MenuItemOptions`（文案 + 快捷键），
 /// 不再自行判定「能否打开链接 / 是否文件可揭示」等业务规则。
-fn compute_available_actions(item: &ClipboardItem) -> Vec<ClipboardAction> {
+fn compute_available_actions(
+    item: &ClipboardItem,
+    mixed_batch_paste: bool,
+) -> Vec<ClipboardAction> {
     let mut actions = Vec::with_capacity(10);
 
+    if is_selectable_for_batch(item, mixed_batch_paste) {
+        actions.push(ClipboardAction::Select);
+    }
     actions.push(ClipboardAction::Paste);
 
     match item.kind {
@@ -1008,6 +1020,25 @@ fn compute_available_actions(item: &ClipboardItem) -> Vec<ClipboardAction> {
     actions.push(ClipboardAction::Delete);
 
     actions
+}
+
+/// Text can always join a text-only batch. Mixed mode may include images and
+/// file records, but a file row is selectable only while every path exists.
+fn is_selectable_for_batch(item: &ClipboardItem, mixed_batch_paste: bool) -> bool {
+    if item.kind == ClipboardKind::Text {
+        return true;
+    }
+    if !mixed_batch_paste {
+        return false;
+    }
+    if item.kind != ClipboardKind::Files {
+        return true;
+    }
+
+    item.content
+        .split('\n')
+        .filter(|path| !path.is_empty())
+        .all(|path| Path::new(path).exists())
 }
 
 fn has_image_plain_text_fallback(item: &ClipboardItem) -> bool {
@@ -2073,10 +2104,25 @@ mod tests {
 
     #[test]
     fn image_actions_include_save_image() {
-        let actions = compute_available_actions(&image_item());
+        let actions = compute_available_actions(&image_item(), false);
 
         assert!(actions.contains(&ClipboardAction::SaveImage));
         assert!(!actions.contains(&ClipboardAction::PasteAsPlainText));
+        assert!(!actions.contains(&ClipboardAction::Select));
+    }
+
+    #[test]
+    fn batch_select_action_follows_mixed_setting_and_file_existence() {
+        let text = text_item(None, false);
+        assert!(compute_available_actions(&text, false).contains(&ClipboardAction::Select));
+
+        let image = image_item();
+        assert!(compute_available_actions(&image, true).contains(&ClipboardAction::Select));
+
+        let mut missing_file = text.clone();
+        missing_file.kind = ClipboardKind::Files;
+        missing_file.content = r"D:\EcoPaste\missing-file-for-batch-test".to_owned();
+        assert!(!compute_available_actions(&missing_file, true).contains(&ClipboardAction::Select));
     }
 
     #[test]
@@ -2084,7 +2130,7 @@ mod tests {
         let mut item = image_item();
         item.search_text = Some("alpha\tbeta".to_owned());
 
-        let actions = compute_available_actions(&item);
+        let actions = compute_available_actions(&item, false);
 
         assert!(actions.contains(&ClipboardAction::PasteAsPlainText));
         assert!(actions.contains(&ClipboardAction::SaveImage));
@@ -2102,7 +2148,7 @@ mod tests {
 
     #[test]
     fn text_actions_do_not_include_save_image() {
-        let actions = compute_available_actions(&text_item(None, false));
+        let actions = compute_available_actions(&text_item(None, false), false);
 
         assert!(!actions.contains(&ClipboardAction::SaveImage));
     }

@@ -1,6 +1,6 @@
 import { Empty } from "antd";
 import type { TFunction } from "i18next";
-import type { FC, WheelEvent } from "react";
+import { type FC, useLayoutEffect, useRef, type WheelEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 import type {
@@ -21,6 +21,7 @@ import {
 export interface PreviewContentProps {
   imageZoom?: number;
   onImageZoomChange?: (zoom: number) => void;
+  onTextContentHeightChange?: (itemId: string, height: number) => void;
   payload: ClipboardPreviewPayload | null;
 }
 
@@ -38,6 +39,10 @@ interface ImageViewerProps extends PayloadViewerProps {
 }
 
 interface FilesViewerProps extends ImageViewerProps {}
+
+interface TextViewerProps extends PayloadViewerProps {
+  onContentHeightChange?: (itemId: string, height: number) => void;
+}
 
 interface FilePreviewRowProps {
   file: ClipboardPreviewFileEntry;
@@ -79,7 +84,12 @@ export const PreviewHeader: FC<PreviewHeaderProps> = (props) => {
  * 按 payload kind 分发到基础 viewer。
  */
 export const PreviewContent: FC<PreviewContentProps> = (props) => {
-  const { imageZoom = 1, onImageZoomChange = noopZoomChange, payload } = props;
+  const {
+    imageZoom = 1,
+    onImageZoomChange = noopZoomChange,
+    onTextContentHeightChange,
+    payload,
+  } = props;
   const { t } = useTranslation("preview");
 
   if (!payload) {
@@ -114,16 +124,40 @@ export const PreviewContent: FC<PreviewContentProps> = (props) => {
     );
   }
 
-  return <TextViewer payload={payload} />;
+  return (
+    <TextViewer
+      onContentHeightChange={onTextContentHeightChange}
+      payload={payload}
+    />
+  );
 };
 
 /**
- * 文本预览：所有文本族内容都按纯文本虚拟行展示，避免长 HTML / RTF 构造大 DOM。
+ * 文本预览：所有文本族内容使用单个只读 textarea，支持原生选择与精确测量溢出。
  */
-const TextViewer: FC<PayloadViewerProps> = (props) => {
-  const { payload } = props;
+const TextViewer: FC<TextViewerProps> = (props) => {
+  const { onContentHeightChange, payload } = props;
   const { t } = useTranslation("preview");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const text = payload.text ?? "";
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: remeasure after payload text changes
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || !onContentHeightChange) return;
+
+    const reportHeight = () => {
+      onContentHeightChange(payload.id, textarea.scrollHeight);
+    };
+    reportHeight();
+
+    const observer = new ResizeObserver(reportHeight);
+    observer.observe(textarea);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [onContentHeightChange, payload.id, text]);
 
   if (text.length === 0) {
     return (
@@ -140,6 +174,7 @@ const TextViewer: FC<PayloadViewerProps> = (props) => {
     <textarea
       className="block h-full min-h-0 w-full flex-1 select-text resize-none overflow-auto whitespace-pre-wrap border-0 bg-transparent p-4 font-mono text-xs leading-5.5 outline-none"
       readOnly
+      ref={textareaRef}
       spellCheck={false}
       value={text}
       wrap="soft"
@@ -170,8 +205,15 @@ const ImageViewer: FC<ImageViewerProps> = (props) => {
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
 
-    const factor =
-      event.deltaY < 0 ? PREVIEW_IMAGE_ZOOM_STEP : 1 / PREVIEW_IMAGE_ZOOM_STEP;
+    const factor = event.ctrlKey
+      ? clamp(
+          Math.exp(-event.deltaY * 0.01),
+          1 / PREVIEW_IMAGE_ZOOM_STEP,
+          PREVIEW_IMAGE_ZOOM_STEP,
+        )
+      : event.deltaY < 0
+        ? PREVIEW_IMAGE_ZOOM_STEP
+        : 1 / PREVIEW_IMAGE_ZOOM_STEP;
     onZoomChange(
       clamp(zoom * factor, PREVIEW_IMAGE_ZOOM_MIN, PREVIEW_IMAGE_ZOOM_MAX),
     );

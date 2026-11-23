@@ -292,8 +292,14 @@ window focus, and platform input routing.
   240ms hide buffer.
 - Windows stores/restores the previous foreground HWND around panel focus.
   macOS uses the nonactivating floating panel as key while the pointer is inside.
-- Text preview defaults to 360 logical pixels and is capped by the existing
-  480px panel limit. Scrollbars must appear only when content actually overflows.
+- Text preview height follows real content and is capped by the clipboard-window
+  height. The visible textarea reports its real `scrollHeight`
+  back to layout; scrollbars must appear only when content actually overflows.
+- Image preview zoom may expand beyond the default 480px panel dimensions up to
+  the monitor margin-inset overlay. Apply one uniform scale to both axes and
+  reset from the preview session id so reopening the same item starts fit-sized.
+- Left/right connector source anchors use the clipboard-window outer edge, not
+  the padded virtual card edge.
 
 #### 4. Validation & Error Matrix
 

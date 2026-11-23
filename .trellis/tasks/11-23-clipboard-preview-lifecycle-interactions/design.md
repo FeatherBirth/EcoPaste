@@ -110,12 +110,21 @@ Keep zoom state keyed by payload id in the preview page:
 - payload/session change resets zoom to fit;
 - scrolling the image container must not close the preview.
 
+Image zoom uses the full monitor margin-inset overlay as its outer limit rather
+than the clipboard-window width, and applies one uniform scale to both axes.
+The visible motion panel must not keep a fixed `max-width` or `max-height`;
+only the hidden measurement layer retains fallback dimensions.
+
 ## Windows Outside-Click Exclusion
 
 The clipboard window auto-hide hook runs independently of the preview WebView
 focus path. A click inside the current preview panel looks like an outside click
 relative to the clipboard window. The mouse hook must check the reported preview
 panel physical rect first and leave the clipboard window visible for that click.
+
+For left/right placement, the connector source is the clipboard-window outer
+edge at the item's vertical center, not the virtual card edge. This keeps the
+dot outside the card and independent of the card's horizontal list padding.
 
 No Rust clipboard contract is needed for zoom because it only affects preview presentation.
 

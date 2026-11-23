@@ -63,6 +63,12 @@ active and the selected count for the header control.
 - The header list-check button enters/leaves multi-select mode.
 - In that mode, ordinary clicks add rows; Cmd/Ctrl-click toggles a row; Shift
   replaces the selection with an inclusive range.
+- Repeating an ordinary click on a selected row removes it.
+- Text rows are always batch-selectable. Image/file rows require the experimental
+  mixed setting, and files rows whose stored paths no longer all exist are
+  unavailable. Unavailable rows are muted and skipped by Shift ranges.
+- Native context-menu `select` and the optional configured quick action both
+  enter selection mode and add the current row.
 - Modifier clicks outside explicit mode enter mode instead of running the
   configured single-click paste/copy action.
 - Clear index selection whenever the query changes, the list reloads, a row is

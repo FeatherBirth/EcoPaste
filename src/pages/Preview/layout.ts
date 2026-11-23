@@ -36,11 +36,16 @@ export function resolveEffectivePanelSize(
   payload: ClipboardPreviewPayload | null,
   panelLimits: PreviewMeasuredSize,
   imageZoom: number,
+  textContentHeight: number | null,
 ): PreviewMeasuredSize {
   if (!payload) return measuredSize;
 
   if (payload.kind === "text") {
-    return resolveTextPanelSize(payload.text ?? "", panelLimits);
+    return resolveTextPanelSize(
+      payload.text ?? "",
+      panelLimits,
+      textContentHeight,
+    );
   }
 
   if (payload.kind === "files" && !payload.singleImagePreview) {
@@ -94,6 +99,7 @@ export function resolveDynamicPanelRect(
  */
 export function resolvePreviewPanelLimits(
   state: ClipboardPreviewState,
+  useFullOverlay: boolean,
 ): PreviewMeasuredSize {
   const clipboardWidth = state.clipboardWindow
     ? state.clipboardWindow.width / state.scaleFactor
@@ -106,18 +112,33 @@ export function resolvePreviewPanelLimits(
     height: Math.max(
       PREVIEW_PANEL_MIN_HEIGHT,
       Math.min(
-        clipboardHeight,
+        useFullOverlay ? state.layout.overlayRect.height : clipboardHeight,
         state.layout.overlayRect.height - PREVIEW_PANEL_MARGIN * 2,
       ),
     ),
     width: Math.max(
       PREVIEW_PANEL_MIN_WIDTH,
       Math.min(
-        PREVIEW_PANEL_ZOOM_MAX_WIDTH,
-        clipboardWidth,
+        useFullOverlay ? state.layout.overlayRect.width : clipboardWidth,
         state.layout.overlayRect.width - PREVIEW_PANEL_MARGIN * 2,
       ),
     ),
+  };
+}
+
+/**
+ * Convert the physical clipboard-window rect into preview-overlay coordinates.
+ */
+export function resolveClipboardWindowOverlayRect(
+  state: ClipboardPreviewState,
+): ClipboardPreviewRect | null {
+  if (!state.clipboardWindow) return null;
+
+  return {
+    height: state.clipboardWindow.height / state.scaleFactor,
+    left: (state.clipboardWindow.x - state.workArea.x) / state.scaleFactor,
+    top: (state.clipboardWindow.y - state.workArea.y) / state.scaleFactor,
+    width: state.clipboardWindow.width / state.scaleFactor,
   };
 }
 
@@ -245,23 +266,21 @@ function resolveImagePanelSize(
 }
 
 /**
- * 文本 viewer 使用虚拟行渲染，测量层不再渲染整段内容；这里按同款软切行估算面板尺寸。
+ * 文本 viewer 使用单个 textarea；首次渲染先估算，随后使用真实 scrollHeight。
  */
 function resolveTextPanelSize(
   text: string,
   panelLimits: PreviewMeasuredSize,
+  measuredContentHeight: number | null,
 ): PreviewMeasuredSize {
   const maxPanelWidth = panelLimits.width;
   const maxPanelHeight = panelLimits.height;
-  const rowCount = countTextPreviewRows(text);
   const contentHeight =
-    rowCount === 0
-      ? PREVIEW_EMPTY_CONTENT_HEIGHT
-      : rowCount * PREVIEW_TEXT_ROW_HEIGHT + PREVIEW_TEXT_VERTICAL_PADDING;
+    measuredContentHeight ?? estimateTextContentHeight(text);
 
   return {
     height: clamp(
-      PREVIEW_PANEL_HEADER_HEIGHT + contentHeight,
+      PREVIEW_PANEL_HEADER_HEIGHT + contentHeight + 2,
       PREVIEW_PANEL_MIN_HEIGHT,
       maxPanelHeight,
     ),
@@ -293,21 +312,40 @@ function zoomImagePanelSize(
       PREVIEW_PANEL_HEADER_HEIGHT -
       PREVIEW_PANEL_IMAGE_PADDING_Y,
   );
+  const scale = Math.min(
+    boundedZoom,
+    (panelLimits.width - PREVIEW_PANEL_IMAGE_PADDING_X) / baseImageWidth,
+    (panelLimits.height -
+      PREVIEW_PANEL_HEADER_HEIGHT -
+      PREVIEW_PANEL_IMAGE_PADDING_Y) /
+      baseImageHeight,
+  );
 
   return {
     height: clamp(
-      baseImageHeight * boundedZoom +
+      baseImageHeight * scale +
         PREVIEW_PANEL_HEADER_HEIGHT +
         PREVIEW_PANEL_IMAGE_PADDING_Y,
       PREVIEW_PANEL_MIN_HEIGHT,
       panelLimits.height,
     ),
     width: clamp(
-      baseImageWidth * boundedZoom + PREVIEW_PANEL_IMAGE_PADDING_X,
+      baseImageWidth * scale + PREVIEW_PANEL_IMAGE_PADDING_X,
       PREVIEW_PANEL_MIN_WIDTH,
       panelLimits.width,
     ),
   };
+}
+
+/**
+ * Estimate natural text content height until the real textarea reports its
+ * scrollHeight after the first paint.
+ */
+function estimateTextContentHeight(text: string) {
+  const rowCount = countTextPreviewRows(text);
+  return rowCount === 0
+    ? PREVIEW_EMPTY_CONTENT_HEIGHT
+    : rowCount * PREVIEW_TEXT_ROW_HEIGHT + PREVIEW_TEXT_VERTICAL_PADDING;
 }
 
 /**

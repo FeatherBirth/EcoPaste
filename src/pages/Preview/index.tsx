@@ -1,7 +1,7 @@
 import { useMount } from "ahooks";
 import { Spin } from "antd";
 import { motion } from "motion/react";
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useSnapshot } from "valtio";
 import {
   type ClipboardPreviewState,
@@ -28,6 +28,7 @@ import { resolveConnector } from "./geometry";
 import { usePreviewPayload, usePreviewRenderState } from "./hooks";
 import {
   rectStyle,
+  resolveClipboardWindowOverlayRect,
   resolveDynamicPanelRect,
   resolveEffectivePanelSize,
   resolveMeasurePanelStyle,
@@ -72,9 +73,13 @@ const Preview: FC = () => {
     useState<ClipboardPreviewState | null>(null);
   const [payloadResetToken, setPayloadResetToken] = useState(0);
   const [imageZoomState, setImageZoomState] = useState<{
-    itemId: string | null;
+    sessionId: number | null;
     zoom: number;
-  }>({ itemId: null, zoom: 1 });
+  }>({ sessionId: null, zoom: 1 });
+  const [textHeightState, setTextHeightState] = useState<{
+    itemId: string | null;
+    height: number;
+  }>({ height: 0, itemId: null });
   const { clipboard } = useSnapshot(settingsState);
   const redactSecrets = clipboard.sensitive.redactSecrets;
   const renderState = usePreviewRenderState(previewState);
@@ -87,10 +92,15 @@ const Preview: FC = () => {
   const active = previewState !== null;
   const visibleState = previewState ?? renderState;
   const visibleItemId = visibleState?.itemId ?? null;
+  const visibleSessionId = visibleState?.sessionId ?? null;
   const imageZoom =
-    imageZoomState.itemId === visibleItemId ? imageZoomState.zoom : 1;
+    imageZoomState.sessionId === visibleSessionId ? imageZoomState.zoom : 1;
+  const textContentHeight =
+    textHeightState.itemId === visibleItemId ? textHeightState.height : null;
+  const usesFullPreviewViewport =
+    payload?.kind === "image" || payload?.singleImagePreview === true;
   const panelLimits = visibleState
-    ? resolvePreviewPanelLimits(visibleState)
+    ? resolvePreviewPanelLimits(visibleState, usesFullPreviewViewport)
     : DEFAULT_PANEL_LIMITS;
   const effectivePanelSize = visibleState
     ? resolveEffectivePanelSize(
@@ -99,6 +109,7 @@ const Preview: FC = () => {
         payload,
         panelLimits,
         imageZoom,
+        textContentHeight,
       )
     : measuredPanelSize;
   const panelRect = visibleState
@@ -120,8 +131,16 @@ const Preview: FC = () => {
   const panelMeasureStyle = visibleState
     ? resolveMeasurePanelStyle(visibleState.layout)
     : void 0;
+  const clipboardWindowRect = visibleState
+    ? resolveClipboardWindowOverlayRect(visibleState)
+    : null;
   const connector = visibleState
-    ? resolveConnector(visibleState.layout.sourceRect, panelRect)
+    ? resolveConnector(
+        visibleState.layout.sourceRect,
+        panelRect,
+        visibleState.layout.placement,
+        clipboardWindowRect,
+      )
     : EMPTY_CONNECTOR;
   const panelLayoutReady =
     payload?.id === visibleState?.itemId &&
@@ -166,8 +185,20 @@ const Preview: FC = () => {
   };
 
   const handleImageZoomChange = (zoom: number) => {
-    setImageZoomState({ itemId: visibleItemId, zoom });
+    setImageZoomState({ sessionId: visibleSessionId, zoom });
   };
+
+  const handleTextContentHeightChange = useCallback(
+    (itemId: string, height: number) => {
+      setTextHeightState((current) => {
+        if (current.itemId === itemId && current.height === height) {
+          return current;
+        }
+        return { height, itemId };
+      });
+    },
+    [],
+  );
 
   useTauriListen<BeforeDestroyPayload>(
     TAURI_EVENT.WINDOW_BEFORE_DESTROY,
@@ -236,7 +267,7 @@ const Preview: FC = () => {
 
       <motion.div
         animate={active ? "open" : "closed"}
-        className="absolute z-5 flex max-h-120 min-w-72 max-w-120 flex-col overflow-hidden rounded-2 border border-ant-border bg-ant-container/95 shadow-lg backdrop-blur"
+        className="absolute z-5 flex min-w-72 flex-col overflow-hidden rounded-2 border border-ant-border bg-ant-container/95 shadow-lg backdrop-blur"
         initial="closed"
         style={motionLayout.panelStyle}
         transition={PREVIEW_PANEL_TRANSITION}
@@ -253,6 +284,7 @@ const Preview: FC = () => {
             <PreviewContent
               imageZoom={imageZoom}
               onImageZoomChange={handleImageZoomChange}
+              onTextContentHeightChange={handleTextContentHeightChange}
               payload={payload}
             />
           </div>

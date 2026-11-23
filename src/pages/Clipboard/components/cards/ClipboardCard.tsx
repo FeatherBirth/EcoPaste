@@ -19,6 +19,7 @@ interface ClipboardCardProps {
   item: ClipboardItem;
   isSelected?: boolean;
   isFocused?: boolean;
+  isSelectionDisabled?: boolean;
   /**
    * 快捷键提示字符（"1"–"9" / "0"），存在时在 app 图标上叠加 KeyHint；
    * 按下修饰键（macOS ⌘ / Windows Ctrl）+ 该数字键触发快速粘贴。
@@ -60,6 +61,7 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
     item,
     isSelected,
     isFocused,
+    isSelectionDisabled = false,
     hintKey,
     onQuickPaste,
     isLinkActive,
@@ -134,6 +136,7 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
 
   return (
     <div
+      aria-disabled={isSelectionDisabled}
       aria-selected={isSelected}
       className={cn(
         "relative flex flex-col gap-1 overflow-hidden rounded-2 border border-ant-border-secondary p-2 transition-colors duration-150 ease-out motion-reduce:transition-none",
@@ -141,10 +144,12 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
           "border-ant-primary bg-ant-blue-1": isSelected,
           "border-ant-primary bg-ant-container":
             (item.isPinned || isFocused) && !isSelected,
+          "opacity-45 grayscale": isSelectionDisabled,
         },
       )}
       data-clipboard-item-id={item.id}
-      draggable
+      data-selection-disabled={isSelectionDisabled}
+      draggable={!isSelectionDisabled}
       onAuxClick={onAuxClick}
       onContextMenu={handleContextMenu}
       onDoubleClick={onDoubleClick}

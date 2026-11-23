@@ -119,6 +119,8 @@ pub struct ClipboardItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ClipboardAction {
+    /// 进入多选模式并选中当前记录。
+    Select,
     /// 普通粘贴（恒在）。
     Paste,
     /// 文本条目额外提供「粘贴为纯文本」。
