@@ -13,10 +13,11 @@ export const PREVIEW_CONNECTOR_DOT_RADIUS = 4;
 /**
  * The right list edge includes an overlay scrollbar and border that are not
  * part of the visible card surface. Keep the already-correct left anchor
- * unchanged and compensate only the right source point.
+ * unchanged and compensate only the right source point. This is a logical CSS
+ * length; WebView and the preview overlay scale it together on high-DPI screens.
  */
 export const PREVIEW_RIGHT_CONNECTOR_INSET =
-  PREVIEW_CONNECTOR_DOT_RADIUS * 4 + 2;
+  PREVIEW_CONNECTOR_DOT_RADIUS * 8 + 2;
 export const PREVIEW_EMPTY_CONTENT_HEIGHT = 96;
 export const PREVIEW_TEXT_ROW_HEIGHT = 22;
 export const PREVIEW_TEXT_VERTICAL_PADDING = 32;

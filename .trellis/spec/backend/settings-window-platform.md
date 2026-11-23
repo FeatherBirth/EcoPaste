@@ -306,6 +306,10 @@ window focus, and platform input routing.
 - React sends the full-width list-row rect with the card's vertical center.
   Rust maps that rect into overlay coordinates, and connector endpoints sit one
   dot-radius outside the row and panel borders on either side.
+- Connector radii, insets, card rects, and panel rects remain CSS logical pixels.
+  Do not multiply them by `devicePixelRatio` or monitor scale in React; the
+  physical conversion happens once through the clipboard-window and overlay
+  coordinate mapping, so Windows 125/150/200% scaling stays aligned.
 - On Windows, configure `GID_ZOOM` on the preview HWND tree, including
   `WM_GESTURENOTIFY`, and consume zoom only while the gesture point is inside
   the current panel. Precision-touchpad pinch therefore updates the same
