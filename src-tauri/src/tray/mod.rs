@@ -12,7 +12,6 @@ use tauri::tray::TrayIconBuilder;
 #[cfg(target_os = "windows")]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
 use tauri::{AppHandle, Manager};
-use tauri_plugin_opener::OpenerExt;
 
 use crate::clipboard::WatcherPause;
 use crate::core::Result;
@@ -24,11 +23,8 @@ use crate::window::CLIPBOARD_WINDOW_LABEL;
 use crate::window::{self, PREFERENCE_WINDOW_LABEL};
 
 const TRAY_ID: &str = "app-tray";
-const GITHUB_URL: &str = "https://github.com/EcoPasteHub/EcoPaste";
-
 const MENU_PREFERENCE: &str = "tray::preference";
 const MENU_TOGGLE_LISTEN: &str = "tray::toggle_listen";
-const MENU_OPEN_SOURCE: &str = "tray::open_source";
 const MENU_CHECK_FOR_UPDATES: &str = "tray::check_for_updates";
 const MENU_RELAUNCH: &str = "tray::relaunch";
 const MENU_EXIT: &str = "tray::exit";
@@ -157,14 +153,6 @@ fn build_menu(
         None::<&str>,
     )
     .context("build toggle_listen menu item")?;
-    let open_source = MenuItem::with_id(
-        app,
-        MENU_OPEN_SOURCE,
-        tray_i18n::label(lang, Key::OpenSourceAddress),
-        true,
-        None::<&str>,
-    )
-    .context("build open_source menu item")?;
     let check_for_updates = MenuItem::with_id(
         app,
         MENU_CHECK_FOR_UPDATES,
@@ -205,7 +193,6 @@ fn build_menu(
             &preference,
             &toggle_listen,
             &sep1,
-            &open_source,
             &check_for_updates,
             &sep2,
             &version_item,
@@ -232,11 +219,6 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
                 if let Err(err) = rebuild_menu(app) {
                     log::warn!("rebuild tray menu after toggle failed: {err}");
                 }
-            }
-        }
-        MENU_OPEN_SOURCE => {
-            if let Err(err) = app.opener().open_url(GITHUB_URL, None::<&str>) {
-                log::error!("tray open url failed: {err:?}");
             }
         }
         MENU_CHECK_FOR_UPDATES => {

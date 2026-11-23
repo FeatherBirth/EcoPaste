@@ -10,11 +10,6 @@ name: Release CI
         description: "Release tag to build, for example v0.6.0-beta.4"
         required: true
         type: string
-      sign_build:
-        description: "Sign updater artifacts with the configured Tauri private key"
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: write
@@ -267,10 +262,11 @@ jobs:
           CI: false
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           PLATFORM: ${{ matrix.os }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ (github.event_name == 'push' || inputs.sign_build) && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ (github.event_name == 'push' || inputs.sign_build) && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target ${{ matrix.target }} ${{ (github.event_name == 'push' || inputs.sign_build) && '' || '--no-sign' }}
+          args: --target ${{ matrix.target }}
+          includeUpdaterJson: false
           prerelease: ${{ needs.release-metadata.outputs.prerelease }}
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseId: ${{ needs.release-metadata.outputs.release_id }}
@@ -318,8 +314,116 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Build updater manifest from signed platform assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          RELEASE_ID: ${{ needs.release-metadata.outputs.release_id }}
+          TAG_NAME: ${{ needs.release-metadata.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+
+          version="${TAG_NAME#v}"
+          rm -rf updater-signatures
+          mkdir updater-signatures
+          gh release download "${TAG_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern "*.sig" \
+            --dir updater-signatures
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?per_page=100" \
+            > release-assets.json
+          gh release view "${TAG_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json body \
+            --jq .body > release-notes.md
+
+          asset_url() {
+            local name="$1"
+            local url
+            url="$(jq -r --arg name "${name}" '.[] | select(.name == $name) | .browser_download_url' release-assets.json)"
+            if [[ -z "${url}" ]]; then
+              echo "::error::Release asset '${name}' is missing."
+              exit 1
+            fi
+            printf '%s' "${url}"
+          }
+
+          asset_signature() {
+            local name="$1"
+            local signature_file="updater-signatures/${name}.sig"
+            if [[ ! -s "${signature_file}" ]]; then
+              echo "::error::Updater signature '${signature_file##*/}' is missing."
+              exit 1
+            fi
+            tr -d '\r\n' < "${signature_file}"
+          }
+
+          win_x64="EcoPaste_${version}_x64-setup.exe"
+          win_arm64="EcoPaste_${version}_arm64-setup.exe"
+          mac_x64="EcoPaste_${version}_x64.app.tar.gz"
+          mac_arm64="EcoPaste_${version}_aarch64.app.tar.gz"
+
+          jq -n \
+            --arg version "${version}" \
+            --arg notes "$(cat release-notes.md)" \
+            --arg pub_date "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg win_x64_url "$(asset_url "${win_x64}")" \
+            --arg win_x64_sig "$(asset_signature "${win_x64}")" \
+            --arg win_arm64_url "$(asset_url "${win_arm64}")" \
+            --arg win_arm64_sig "$(asset_signature "${win_arm64}")" \
+            --arg mac_x64_url "$(asset_url "${mac_x64}")" \
+            --arg mac_x64_sig "$(asset_signature "${mac_x64}")" \
+            --arg mac_arm64_url "$(asset_url "${mac_arm64}")" \
+            --arg mac_arm64_sig "$(asset_signature "${mac_arm64}")" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: {
+                "windows-x86_64": { signature: $win_x64_sig, url: $win_x64_url },
+                "windows-aarch64": { signature: $win_arm64_sig, url: $win_arm64_url },
+                "darwin-x86_64": { signature: $mac_x64_sig, url: $mac_x64_url },
+                "darwin-aarch64": { signature: $mac_arm64_sig, url: $mac_arm64_url }
+              }
+            }' > latest.json
+
+          gh release upload "${TAG_NAME}" latest.json \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
+
       - name: Publish completed release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           TAG_NAME: ${{ needs.release-metadata.outputs.tag_name }}
-        run: gh release edit "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
+        run: |
+          set -euo pipefail
+          gh release edit "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
+
+      - name: Verify the public updater endpoint
+        shell: bash
+        env:
+          TAG_NAME: ${{ needs.release-metadata.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#v}"
+          expected="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json"
+
+          curl --fail --silent --show-error --location --retry 10 --retry-delay 3 \
+            "${expected}" --output published-latest.json
+          advertised_version="$(jq -r '.version' published-latest.json)"
+          if [[ "${advertised_version}" != "${version}" ]]; then
+            echo "::error::Updater manifest advertises ${advertised_version}, expected ${version}."
+            exit 1
+          fi
+          for target in windows-x86_64 windows-aarch64 darwin-x86_64 darwin-aarch64; do
+            signature="$(jq -r --arg target "${target}" '.platforms[$target].signature // empty' published-latest.json)"
+            url="$(jq -r --arg target "${target}" '.platforms[$target].url // empty' published-latest.json)"
+            if [[ -z "${signature}" || -z "${url}" ]]; then
+              echo "::error::Updater manifest is missing ${target}."
+              exit 1
+            fi
+          done
+          echo "Verified ${expected}"

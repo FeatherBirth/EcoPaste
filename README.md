@@ -29,11 +29,25 @@ The app is designed to be fast, lightweight, and maintainable, with local storag
 - Filter history by source application and content type.
 - Protect sensitive content by skipping high-confidence secrets such as private keys, service tokens, AWS keys, and JWTs.
 - Preview text, images, and files in a dedicated preview window.
+- Keep previews interactive with selectable text, scrolling, whole-panel image zoom, and reliable cleanup when the pointer moves away.
+- Select multiple history entries with ordered badges, then batch paste in the chosen order.
 - Paste, copy, copy as plain text, reveal files, open links, add notes, pin, favorite, delete, and drag items out to other apps.
 - Organize history with favorites, pinned items, notes, custom groups, and configurable item actions.
 - Tune capture order, size limits, retention, display density, list sorting, and window behavior.
 - Export and import `.ecopastebak` backups, including encrypted backup containers.
 - Keep clipboard data, resources, and settings local to your machine.
+- Check signed updates from this repository's GitHub Releases.
+
+## Updates
+
+EcoPaste reads the signed updater manifest from
+`https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json`.
+Each release includes signed packages for Windows x64/ARM64 and macOS
+Intel/Apple Silicon.
+
+Version 1.6.0 introduces the current updater signing identity. Install 1.6.0
+manually once; later versions can be downloaded and installed from the in-app
+update window.
 
 ## Install on Windows
 

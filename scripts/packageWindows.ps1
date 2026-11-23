@@ -5,7 +5,11 @@ param(
 $ErrorActionPreference = "Stop"
 $buildArgs = @("tauri", "build", "--bundles", "nsis")
 
-if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+$hasSigningKey =
+  -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY) -or
+  -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PATH)
+
+if (-not $hasSigningKey) {
   $buildArgs += "--no-sign"
 }
 

@@ -1,9 +1,6 @@
 {
   "about": {
-    "checkUpdates": "检查更新",
-    "sponsor": "赞赏支持",
-    "sponsorHint": "如果 EcoPaste 帮到了你，可以给项目一点支持。",
-    "sponsorQrAlt": "赞赏二维码"
+    "checkUpdates": "检查更新"
   },
   "backup": {
     "export": {
@@ -145,14 +142,6 @@
           "controlLabel": "检查更新",
           "description": "检查 EcoPaste 是否有可用的新版本。",
           "title": "检查更新"
-        },
-        "github": {
-          "controlLabel": "打开",
-          "title": "GitHub"
-        },
-        "sponsor": {
-          "description": "如果 EcoPaste 帮到了你，可以给项目一点支持。",
-          "title": "赞赏支持"
         }
       },
       "actions": {
@@ -583,10 +572,6 @@
           "description": "定期检查 EcoPaste 是否有可用的新版本。",
           "title": "自动检查更新"
         },
-        "beta": {
-          "description": "检查更新时同时接收测试版。",
-          "title": "接收测试版更新"
-        },
         "frequency": {
           "description": "设置自动检查更新的时间间隔。",
           "options": {
@@ -595,10 +580,6 @@
             "weekly": "每周"
           },
           "title": "自动检查频率"
-        },
-        "nightly": {
-          "description": "检查更新时同时接收每日构建版本。",
-          "title": "接收每日构建更新"
         }
       },
       "window": {

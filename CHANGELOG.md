@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.6.0](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.3...v1.6.0) (2026-11-23)
+
+### ✨ Features
+
+- Rework hover previews so rapid pointer movement, application switching, blank list space, and window blur always close a stale preview.
+- Make text previews interactive: select text, copy selections, scroll when needed, and size the panel to the content up to the clipboard-window height.
+- Zoom the whole image preview panel with the mouse wheel, Ctrl + wheel, or precision-touchpad pinch while preserving the image aspect ratio and resetting on each preview session.
+- Add ordered multi-select for clipboard history. Ctrl/Cmd-click toggles an item, Shift-click selects a range, selected cards show their paste order, and cancellation compacts the remaining order.
+- Add batch paste in selection order, including an experimental mixed text/image/file mode that uses sequential paste only when the selection requires it.
+- Add a Windows-only screenshot clipboard repair setting. It is disabled by default and preserves the existing Office/Excel behavior of choosing image or text according to the target application.
+- Switch automatic updates to the current GitHub Releases repository and publish signed updater artifacts for Windows x64/ARM64 and macOS Intel/Apple Silicon.
+- Respect the Windows system HTTP proxy when checking and downloading updates.
+
+### 🐛 Bug Fixes
+
+- Align left and right preview connector anchors with the visual list edge across Windows display scaling from 125% to 200%.
+- Keep preview geometry in CSS logical pixels and convert to physical coordinates only at the native window boundary.
+- Disable unavailable mixed-paste items, deleted files, and other ineligible records during both click selection and Shift range selection.
+- Prevent preview scrollbars from flashing during the initial text measurement and opening transition.
+- Let text preview remain open while the pointer enters the panel so selection and copying can complete.
+- Remove legacy update endpoints, beta/nightly channel remnants, the author donation QR code, and obsolete external-link entries from the app.
+
+### ⚠️ Upgrade Notice
+
+- The updater signing identity was reset for this fork. Install 1.6.0 manually once; later versions can update through the signed GitHub Release manifest.
+- The existing Windows one-command installer remains supported and updates the machine-wide installation in place without deleting user data.
+
 ## [1.5.3](https://github.com/FeatherBirth/EcoPaste/compare/v1.5.2...v1.5.3) (2026-11-11)
 
 ### 🐛 Bug Fixes

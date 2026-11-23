@@ -28,8 +28,12 @@ upgrade automation.
   or deleting user data.
 - `/P` runs the installer with passive progress UI.
 - `/R` starts the installed application once after completion.
-- `package:windows` skips updater signing only when
-  `TAURI_SIGNING_PRIVATE_KEY` is absent; otherwise it preserves signing.
+- Local `package:windows` may use `--no-sign` only for diagnostic installs.
+  GitHub release builds must always supply `TAURI_SIGNING_PRIVATE_KEY`; unsigned
+  release packages are invalid because auto-update verifies signatures.
+- A GitHub release publishes one combined `latest.json` after every matrix job
+  completes. Do not let platform jobs race by uploading their own updater
+  manifests.
 - The install wrapper waits for the installer process, not its launched child
   application, then verifies one responsive installed process.
 

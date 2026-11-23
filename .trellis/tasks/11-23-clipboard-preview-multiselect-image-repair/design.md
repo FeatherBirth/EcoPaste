@@ -1,5 +1,26 @@
 # Cross-Feature Integration Design
 
+## 1.6.0 GitHub Release and Updater Integration
+
+- `package.json.version` remains the release source; Cargo metadata is updated
+  with it for the desktop binary.
+- The updater public key is the fork-specific signing key. The private key exists
+  only as a GitHub Actions secret and in the local release-signing directory for
+  this session.
+- GitHub Actions builds each platform with `includeUpdaterJson: false`, uploads
+  the platform installer plus Tauri `.sig`, then a single final job downloads all
+  signatures, reads the release assets, and writes one `latest.json` containing:
+  `windows-x86_64`, `windows-aarch64`, `darwin-x86_64`, and `darwin-aarch64`.
+- The public endpoint is the repository's stable latest URL, so moving to a new
+  release requires only publishing a newer stable GitHub Release.
+- Windows updater HTTP requests explicitly use the current user's WinINet proxy
+  when enabled. GitHub access through the normal system proxy therefore works
+  without requiring global environment variables.
+- The legacy release server, beta/nightly channel switches, donation QR, tray
+  source link, and About-page external links are intentionally removed. The
+  update window's release-notes link is the only remaining update-related link
+  and points to the current repository.
+
 ## Architecture and Boundaries
 
 The request is split into three independently verifiable child tasks:

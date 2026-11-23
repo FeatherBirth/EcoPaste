@@ -48,6 +48,15 @@
 - Excel/WPS 等带表格纯文本/富文本语义的图片来源，不得被识别为纯图片并强制改为图片；原有“纯文本工具粘文本、富文本工具粘图片”的格式组合必须保留。
 - 设置关闭时不执行额外格式检测或重写。
 
+### R4 - 1.6.0 发布与 GitHub 自动更新
+
+- 版本号统一提升到 `1.6.0`，同步 `package.json`、`src-tauri/Cargo.toml` 与根 Cargo lock 条目。
+- 移除 `releases.ecopaste.cn`、Beta/Nightly 更新入口、托盘开源地址、关于页 GitHub 入口和作者赞赏二维码。
+- 自动更新读取 `https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json`，签名校验覆盖 Windows x64/ARM64 与 macOS Intel/Apple Silicon。
+- 发布流程不得让各平台并行上传互不完整的 `latest.json`；所有平台构建完成后合并生成唯一清单并校验四个目标。
+- Windows 自动更新需要兼容系统代理配置，避免 GitHub 可访问但应用更新请求失败。
+- Release 说明必须同时提供中英文详细内容，并在发布后验证公开 `latest.json` 可访问且版本、URL、签名字段完整。
+
 ## Acceptance Criteria
 
 - [ ] 三个子任务的全部验收项通过，且父任务进行跨功能集成复核。
@@ -61,6 +70,9 @@
 - [ ] Excel/WPS 单元格复制在普通粘贴、纯文本粘贴和粘贴后历史记录类型上保持现有行为。
 - [ ] macOS 与 Windows 均完成对应编译/测试；涉及平台事件的实际交互完成可用环境验证。
 - [ ] `pnpm lint`、`pnpm tsc`、`cargo fmt --check`、`cargo clippy -- -D warnings`、`cargo test` 通过。
+- [ ] 1.6.0 安装包、签名文件和发布 manifest 对齐；旧更新地址、更新通道、二维码及外部入口已清除。
+- [ ] GitHub Release 同时包含四个平台签名目标，公开 latest 地址可读取且声明版本为 `1.6.0`。
+- [ ] 从本地 1.6.0 安装通过签名清单下载更新、安装、重启并报告目标版本。
 
 ## Out of Scope
 

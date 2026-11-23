@@ -11,14 +11,14 @@ use crate::settings::{SettingsStore, Update as UpdateSettings, UpdateFrequency};
 
 const UPDATE_PROGRESS_EVENT: &str = "update://progress";
 const STABLE_ENDPOINT_ENV: &str = "ECOPASTE_UPDATE_ENDPOINT";
-const BETA_ENDPOINT_ENV: &str = "ECOPASTE_UPDATE_BETA_ENDPOINT";
-const NIGHTLY_ENDPOINT_ENV: &str = "ECOPASTE_UPDATE_NIGHTLY_ENDPOINT";
-const DEFAULT_STABLE_ENDPOINT: &str = "https://releases.ecopaste.cn/update?channel=stable";
-const DEFAULT_BETA_ENDPOINT: &str = "https://releases.ecopaste.cn/update?channel=beta";
-const DEFAULT_NIGHTLY_ENDPOINT: &str = "https://releases.ecopaste.cn/update?channel=nightly";
+const DEFAULT_STABLE_ENDPOINT: &str =
+    "https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json";
 const AUTO_CHECK_INITIAL_DELAY_SECONDS: u64 = 8;
 const AUTO_CHECK_SETTINGS_REFRESH_SECONDS: u64 = 60 * 60;
 const AUTO_CHECK_FAILURE_RETRY_SECONDS: u64 = 60 * 60;
+#[cfg(target_os = "windows")]
+const WINDOWS_INTERNET_SETTINGS_KEY: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
 
 pub struct UpdateState {
     current: Mutex<Option<PendingUpdate>>,
@@ -160,16 +160,19 @@ pub async fn check(app: &AppHandle, mode: CheckMode) -> Result<AppUpdateStatus> 
     }
 
     let settings = app.state::<SettingsStore>().snapshot();
-    let endpoints = update_endpoints(
-        settings.update.include_beta,
-        settings.update.include_nightly,
-    )?;
-    let updater = app
+    let endpoints = update_endpoints()?;
+    let mut builder = app
         .updater_builder()
         .endpoints(endpoints)
-        .context("failed to configure update endpoints")?
-        .build()
-        .context("failed to build updater")?;
+        .context("failed to configure update endpoints")?;
+    if let Some(proxy) = system_proxy_url() {
+        log::debug!(
+            "updater using system proxy {}",
+            proxy.host_str().unwrap_or("")
+        );
+        builder = builder.proxy(proxy);
+    }
+    let updater = builder.build().context("failed to build updater")?;
 
     let found = updater
         .check()
@@ -308,46 +311,77 @@ fn metadata_from_update(update: &TauriUpdate) -> UpdateMetadata {
     }
 }
 
-fn update_endpoints(include_beta: bool, include_nightly: bool) -> Result<Vec<Url>> {
+fn update_endpoints() -> Result<Vec<Url>> {
     let stable_endpoint =
         std::env::var(STABLE_ENDPOINT_ENV).unwrap_or_else(|_| DEFAULT_STABLE_ENDPOINT.to_owned());
-    let beta_endpoint =
-        std::env::var(BETA_ENDPOINT_ENV).unwrap_or_else(|_| DEFAULT_BETA_ENDPOINT.to_owned());
-    let nightly_endpoint =
-        std::env::var(NIGHTLY_ENDPOINT_ENV).unwrap_or_else(|_| DEFAULT_NIGHTLY_ENDPOINT.to_owned());
-
-    update_endpoints_from_values(
-        include_beta,
-        include_nightly,
-        &stable_endpoint,
-        &beta_endpoint,
-        &nightly_endpoint,
-    )
-}
-
-fn update_endpoints_from_values(
-    include_beta: bool,
-    include_nightly: bool,
-    stable_endpoint: &str,
-    beta_endpoint: &str,
-    nightly_endpoint: &str,
-) -> Result<Vec<Url>> {
-    let mut endpoints = Vec::new();
-    if include_nightly {
-        endpoints.push(parse_endpoint(nightly_endpoint)?);
-    }
-    if include_beta {
-        endpoints.push(parse_endpoint(beta_endpoint)?);
-    }
-    endpoints.push(parse_endpoint(stable_endpoint)?);
-
-    Ok(endpoints)
+    Ok(vec![parse_endpoint(&stable_endpoint)?])
 }
 
 fn parse_endpoint(endpoint: &str) -> Result<Url> {
     endpoint
         .parse::<Url>()
         .map_err(|err| AppError::Other(anyhow::anyhow!("update endpoint is invalid: {err}")))
+}
+
+#[cfg(target_os = "windows")]
+fn system_proxy_url() -> Option<url::Url> {
+    use windows_registry::CURRENT_USER;
+
+    let key = CURRENT_USER.open(WINDOWS_INTERNET_SETTINGS_KEY).ok()?;
+    if key.get_u32("ProxyEnable").ok()? != 1 {
+        return None;
+    }
+    let proxy_server = key.get_string("ProxyServer").ok()?;
+
+    parse_windows_proxy_server(&proxy_server)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn system_proxy_url() -> Option<url::Url> {
+    None
+}
+
+fn parse_windows_proxy_server(value: &str) -> Option<url::Url> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+
+    let mut http_proxy = None;
+    for part in value.split(';') {
+        let part = part.trim();
+        let (scheme, address) = part
+            .split_once('=')
+            .map_or(("", part), |(scheme, address)| {
+                (scheme.trim(), address.trim())
+            });
+        if address.is_empty() {
+            continue;
+        }
+
+        if scheme.eq_ignore_ascii_case("https") {
+            return normalize_proxy_url(address);
+        }
+        if scheme.is_empty() || scheme.eq_ignore_ascii_case("http") {
+            http_proxy = normalize_proxy_url(address);
+        }
+    }
+
+    http_proxy
+}
+
+fn normalize_proxy_url(address: &str) -> Option<url::Url> {
+    let address = address.trim();
+    if address.is_empty() {
+        return None;
+    }
+
+    let value = if address.contains("://") {
+        address.to_owned()
+    } else {
+        format!("http://{address}")
+    };
+    url::Url::parse(&value).ok()
 }
 
 fn should_auto_check(app: &AppHandle) -> bool {
@@ -436,8 +470,6 @@ mod tests {
         UpdateSettings {
             auto_check,
             frequency,
-            include_beta: false,
-            include_nightly: false,
             last_checked_at,
             skipped_version: None,
         }
@@ -499,23 +531,29 @@ mod tests {
     }
 
     #[test]
-    fn update_endpoints_include_enabled_channels_before_stable() {
-        let endpoints = update_endpoints_from_values(
-            true,
-            true,
-            "https://example.com/update?channel=stable",
-            "https://example.com/update?channel=beta",
-            "https://example.com/update?channel=nightly",
-        )
-        .unwrap();
-
+    fn default_update_endpoint_targets_current_repository_release() {
         assert_eq!(
-            endpoints.iter().map(Url::as_str).collect::<Vec<_>>(),
-            [
-                "https://example.com/update?channel=nightly",
-                "https://example.com/update?channel=beta",
-                "https://example.com/update?channel=stable",
-            ]
+            parse_endpoint(DEFAULT_STABLE_ENDPOINT).unwrap().as_str(),
+            DEFAULT_STABLE_ENDPOINT
         );
+        assert!(DEFAULT_STABLE_ENDPOINT.contains("/FeatherBirth/EcoPaste/releases/"));
+        assert!(DEFAULT_STABLE_ENDPOINT.ends_with("/latest/download/latest.json"));
+    }
+
+    #[test]
+    fn parses_windows_system_proxy_forms() {
+        assert_eq!(
+            parse_windows_proxy_server("127.0.0.1:7890")
+                .unwrap()
+                .as_str(),
+            "http://127.0.0.1:7890/"
+        );
+        assert_eq!(
+            parse_windows_proxy_server("http=127.0.0.1:7890;https=127.0.0.1:7891")
+                .unwrap()
+                .as_str(),
+            "http://127.0.0.1:7891/"
+        );
+        assert_eq!(parse_windows_proxy_server("  "), None);
     }
 }

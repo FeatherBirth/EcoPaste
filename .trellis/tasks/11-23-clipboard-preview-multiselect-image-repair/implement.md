@@ -1,5 +1,17 @@
 # Cross-Feature Integration Implementation
 
+## 1.6.0 Release and Auto Update
+
+1. Move all product/release metadata to 1.6.0 and the current repository.
+2. Remove legacy update settings, endpoints, sponsor QR, and obsolete UI links.
+3. Add the fork updater public key and store its private key only as a GitHub
+   Actions secret.
+4. Build each platform with signatures, then construct one complete latest.json
+   in the final release job.
+5. Configure Windows updater requests to honor the WinINet HTTP proxy.
+6. Run frontend/Rust quality gates, sign the Windows package, install it, and
+   verify update check/download/install through an HTTPS signed manifest.
+
 ## Ordered Checklist
 
 1. Complete planning review for all children.

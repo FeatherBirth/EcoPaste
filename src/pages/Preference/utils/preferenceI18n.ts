@@ -1,5 +1,4 @@
 import type { TFunction } from "i18next";
-import { GITHUB_URL } from "@/constants/urls";
 import { isMac, isWin } from "@/utils/is";
 import type {
   PreferenceOption,
@@ -39,10 +38,6 @@ export function translatePreferenceSetting(
   setting: PreferenceSetting,
   field: "description" | "title",
 ) {
-  if (setting.id === "about.github" && field === "description") {
-    return GITHUB_URL;
-  }
-
   const platformField = resolvePlatformPreferenceField(setting, field);
   if (platformField) {
     return t(platformField);

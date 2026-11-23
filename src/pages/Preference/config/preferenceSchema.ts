@@ -916,24 +916,6 @@ export const preferenceTabs: PreferenceTab[] = [
               return settings.update.frequency;
             },
           },
-          {
-            control: { type: "switch" },
-            id: "updates.beta",
-            keywords: ["beta", "update"],
-            path: ["update", "includeBeta"],
-            value: (settings) => {
-              return settings.update.includeBeta;
-            },
-          },
-          {
-            control: { type: "switch" },
-            id: "updates.nightly",
-            keywords: ["nightly", "update"],
-            path: ["update", "includeNightly"],
-            value: (settings) => {
-              return settings.update.includeNightly;
-            },
-          },
         ],
       },
     ],
@@ -949,16 +931,6 @@ export const preferenceTabs: PreferenceTab[] = [
             control: { type: "action" },
             id: "about.checkUpdates",
             keywords: ["update", "version"],
-          },
-          {
-            control: { type: "action" },
-            id: "about.github",
-            keywords: ["github", "source", "repository"],
-          },
-          {
-            control: { type: "sponsorQr" },
-            id: "about.sponsor",
-            keywords: ["sponsor", "donate", "support"],
           },
         ],
       },

@@ -977,8 +977,6 @@ not a frontend-only preference action.
   - `update://progress` with `{ downloaded, total, progress }`
 - Settings fields:
   - `update.autoCheck: bool`
-  - `update.includeBeta: bool`
-  - `update.includeNightly: bool`
   - `update.frequency: daily | weekly | monthly`
   - `update.lastCheckedAt: Option<String>`
   - `update.skippedVersion: Option<String>`
@@ -1004,17 +1002,23 @@ not a frontend-only preference action.
 - React renders `AppUpdateStatus` and sends user intent through command wrappers
   only. Do not call updater plugin APIs directly from React components.
 - Stable endpoint default:
-  `https://releases.ecopaste.cn/update?channel=stable`.
+  `https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json`.
+- The Tauri config, Rust fallback endpoint, and updater public key must describe
+  the same fork/release chain.
+- The release workflow must build every platform artifact with the configured
+  private key, disable per-matrix updater-manifest uploads, and generate one
+  combined `latest.json` after all matrix jobs finish.
+- The combined manifest must include `windows-x86_64`, `windows-aarch64`,
+  `darwin-x86_64`, and `darwin-aarch64`, with each signature paired with the
+  matching release asset URL.
+- On Windows, read the current user's WinINet `ProxyEnable` and `ProxyServer`
+  values and pass the selected HTTPS/HTTP proxy to `UpdaterBuilder::proxy`.
+  `reqwest` does not automatically read the Windows registry proxy, and without
+  this bridge a machine can open GitHub in a browser while the updater fails.
 - Optional environment overrides:
-  - `ECOPASTE_UPDATE_ENDPOINT`: stable channel endpoint.
-  - `ECOPASTE_UPDATE_BETA_ENDPOINT`: beta channel endpoint; defaults to
-    `https://releases.ecopaste.cn/update?channel=beta` and is checked before
-    the stable endpoint when `includeBeta` is true.
-  - `ECOPASTE_UPDATE_NIGHTLY_ENDPOINT`: nightly channel endpoint; defaults to
-    `https://releases.ecopaste.cn/update?channel=nightly` and is checked before
-    beta and stable endpoints when `includeNightly` is true.
-  - `TAURI_UPDATER_PUBLIC_KEY` or `TAURI_SIGNING_PUBLIC_KEY`: public updater
-    verification key injected into the plugin at runtime.
+  - `ECOPASTE_UPDATE_ENDPOINT`: endpoint override for local loopback or
+    controlled update testing. It must not contain a production fallback to a
+    different repository.
   - `TAURI_SIGNING_PRIVATE_KEY`: build-time private key used by Tauri bundling
     to sign artifacts; never read it from app runtime code.
 
@@ -1034,13 +1038,15 @@ not a frontend-only preference action.
 - Signature mismatch -> propagated from `tauri-plugin-updater` download
   verification; frontend should show the command error and remain in error
   state.
+- System proxy disabled or unavailable -> updater keeps the default direct
+  connection behavior; invalid proxy values are ignored.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: user opens About -> Check for Updates; Rust opens the `update` window,
-  checks stable/beta endpoint according to settings, downloads through Rust,
-  emits progress, verifies signature, installs, then requests an application
-  restart.
+  checks the current repository's latest signed manifest, downloads through
+  Rust, emits progress, verifies the embedded public key, installs, then
+  requests an application restart.
 - Base: no update is available; Rust clears pending update state and the window
   renders the latest-version state.
 - Bad: React stores downloaded bytes, performs signature checks, or decides
@@ -1054,6 +1060,8 @@ not a frontend-only preference action.
 - Auto-check scheduling changes must verify that the background task loops after
   the first check and still delegates frequency/auto-check gating to
   `should_auto_check`.
+- Proxy parsing tests must cover a bare `host:port`, `http=...;https=...`, and
+  the default direct fallback.
 - Frontend checks: `pnpm tsc` and `pnpm lint`.
 - Packaging/build check: `pnpm build` for route and locale integration.
 - Manual signed-artifact check must assert that a successful install terminates
@@ -1063,10 +1071,10 @@ not a frontend-only preference action.
   - mock endpoint returns newer signed version -> update found and install path
     starts.
   - mock endpoint returns bad signature -> download refuses install.
-  - `includeBeta=false` -> stable endpoint only.
-  - `includeBeta=true` -> beta endpoint is attempted before stable fallback.
-  - `includeNightly=true` -> nightly endpoint is attempted before beta and
-    stable fallback.
+  - the public latest manifest advertises the published version and contains
+    all four release targets.
+  - an installation from the previous signed build downloads, installs,
+    relaunches, and reports the new version.
 
 ### 7. Wrong vs Correct
 

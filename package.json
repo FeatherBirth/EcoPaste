@@ -1,17 +1,17 @@
 {
   "name": "eco-paste",
   "private": true,
-  "version": "1.5.3",
+  "version": "1.6.0",
   "description": "A local-first clipboard manager for macOS and Windows.",
-  "author": "ayangweb",
+  "author": "FeatherBirth",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/EcoPasteHub/EcoPaste#readme",
+  "homepage": "https://github.com/FeatherBirth/EcoPaste#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/EcoPasteHub/EcoPaste.git"
+    "url": "git+https://github.com/FeatherBirth/EcoPaste.git"
   },
   "bugs": {
-    "url": "https://github.com/EcoPasteHub/EcoPaste/issues"
+    "url": "https://github.com/FeatherBirth/EcoPaste/issues"
   },
   "type": "module",
   "packageManager": "pnpm@10.33.1",

@@ -1,11 +1,11 @@
 [package]
 name = "EcoPaste"
-version = "1.5.3"
+version = "1.6.0"
 description = "A local-first clipboard manager for macOS and Windows."
-authors = ["ayangweb"]
+authors = ["FeatherBirth"]
 license = "Apache-2.0"
-homepage = "https://github.com/EcoPasteHub/EcoPaste"
-repository = "https://github.com/EcoPasteHub/EcoPaste"
+homepage = "https://github.com/FeatherBirth/EcoPaste"
+repository = "https://github.com/FeatherBirth/EcoPaste"
 readme = "../README.md"
 publish = false
 edition = "2021"
