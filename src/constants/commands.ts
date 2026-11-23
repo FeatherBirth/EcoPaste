@@ -61,6 +61,7 @@ export const TAURI_COMMAND = {
   REVEAL_CLIPBOARD_ITEM: "reveal_clipboard_item",
   SAVE_CLIPBOARD_IMAGE_TO_FILE: "save_clipboard_image_to_file",
   SET_AUTOSTART: "set_autostart",
+  SET_CLIPBOARD_PREVIEW_PANEL_RECT: "set_clipboard_preview_panel_rect",
   SET_CLIPBOARD_WINDOW_AUTO_HIDE_SUSPENDED:
     "set_clipboard_window_auto_hide_suspended",
   SET_CLIPBOARD_WINDOW_EDITING: "set_clipboard_window_editing",

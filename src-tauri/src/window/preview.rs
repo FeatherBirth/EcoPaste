@@ -29,21 +29,30 @@ use tauri_nspanel::{tauri_panel, ManagerExt, PanelLevel, WebviewWindowExt};
 use windows::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+    GetForegroundWindow, IsWindow, SetForegroundWindow, SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
 };
 
 const PREVIEW_UPDATED_EVENT: &str = "preview://updated";
+const PREVIEW_INTERACTION_EVENT: &str = "preview://interaction";
 const PREVIEW_PANEL_WIDTH: f64 = 480.0;
 const PREVIEW_PANEL_HEIGHT: f64 = 480.0;
 const PREVIEW_PANEL_GAP: f64 = 40.0;
 const PREVIEW_PANEL_MARGIN: f64 = 32.0;
 const PREVIEW_HIDE_DELAY_MS: u64 = 180;
+const PREVIEW_INTERACTION_POLL_MS: u64 = 16;
 
-static PREVIEW_REQUEST_ID: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_LATEST_REQUEST_ID: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_SHOW_GENERATION: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_SESSION_ID: AtomicU64 = AtomicU64::new(0);
 static PREVIEW_SUPPRESSED: AtomicBool = AtomicBool::new(false);
 static PREVIEW_STATE: LazyLock<Mutex<Option<ClipboardPreviewState>>> =
     LazyLock::new(|| Mutex::new(None));
+static PREVIEW_COMMIT_LOCK: Mutex<()> = Mutex::new(());
+static PREVIEW_INTERACTION: LazyLock<Mutex<PreviewInteractionRuntime>> =
+    LazyLock::new(|| Mutex::new(PreviewInteractionRuntime::default()));
+#[cfg(target_os = "windows")]
+static PREVIEW_PREVIOUS_FOREGROUND: Mutex<Option<isize>> = Mutex::new(None);
 /// 串行化建窗：多个预览请求（如连续 hover）可能并发走到「检查不存在 → 建窗」，
 /// 都过了存在性检查会触发重复 label 建窗报错。建窗都来自命令/后台线程、主线程从不持锁，
 /// 不会与 builder 内部的主线程派发互锁。
@@ -54,7 +63,7 @@ tauri_panel! {
     panel!(PreviewPanel {
         config: {
             is_floating_panel: true,
-            can_become_key_window: false,
+            can_become_key_window: true,
             can_become_main_window: false
         }
     })
@@ -87,7 +96,7 @@ pub struct PreviewClipboardWindowRect {
     pub height: u32,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewRect {
     pub left: f64,
@@ -127,59 +136,105 @@ pub struct ClipboardPreviewState {
     pub layout: PreviewLayout,
 }
 
+#[derive(Clone, Debug, Default)]
+struct PreviewInteractionRuntime {
+    request_id: u64,
+    session_id: u64,
+    panel_rect: Option<PreviewRect>,
+    active: bool,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewInteractionPayload {
+    request_id: u64,
+    session_id: u64,
+    active: bool,
+}
+
 /// 打开或重定向预览窗口，并把最新预览状态广播到预览 webview。
 pub async fn show_clipboard_preview(
     app: &AppHandle,
     item_id: String,
     anchor: PreviewAnchorRect,
+    request_id: u64,
 ) -> Result<Option<ClipboardPreviewState>> {
     validate_anchor(&anchor)?;
+
+    if request_id == 0 || !claim_preview_request(request_id) {
+        return Ok(None);
+    }
+    let show_generation = PREVIEW_SHOW_GENERATION.load(Ordering::SeqCst);
 
     if PREVIEW_SUPPRESSED.load(Ordering::SeqCst) || !is_clipboard_window_visible(app) {
         close_clipboard_preview_now(app)?;
         return Ok(None);
     }
 
-    let request_id = PREVIEW_REQUEST_ID.fetch_add(1, Ordering::SeqCst) + 1;
-    let session_id = preview_session_id_for_show();
     let window = ensure_preview_window(app).await?;
+    if !is_preview_request_current(request_id)
+        || !is_preview_show_generation_current(show_generation)
+    {
+        return Ok(None);
+    }
+
     let monitor = resolve_preview_monitor(app)?;
     let work_area = preview_overlay_bounds(&monitor);
     let scale_factor = monitor.scale_factor();
     let clipboard_window = clipboard_window_rect(app);
     let layout = build_preview_layout(&anchor, scale_factor, &work_area, clipboard_window.as_ref());
+    let session_id = preview_session_id_for_show();
 
-    prepare_preview_window_for_show(app, &window, &work_area)?;
+    let state = {
+        let _guard = preview_commit_lock();
+        if !is_preview_request_current(request_id)
+            || !is_preview_show_generation_current(show_generation)
+        {
+            return Ok(None);
+        }
 
-    let state = ClipboardPreviewState {
-        request_id,
-        session_id,
-        item_id,
-        anchor,
-        scale_factor,
-        work_area: PreviewWorkArea {
-            x: work_area.position.x,
-            y: work_area.position.y,
-            width: work_area.size.width,
-            height: work_area.size.height,
-        },
-        layout,
-        clipboard_window,
+        prepare_preview_window_for_show(app, &window, &work_area)?;
+
+        let state = ClipboardPreviewState {
+            request_id,
+            session_id,
+            item_id,
+            anchor,
+            scale_factor,
+            work_area: PreviewWorkArea {
+                x: work_area.position.x,
+                y: work_area.position.y,
+                width: work_area.size.width,
+                height: work_area.size.height,
+            },
+            layout,
+            clipboard_window,
+        };
+
+        clear_preview_interaction(app);
+        set_preview_interaction_runtime(&state, None);
+        set_preview_state(Some(state.clone()));
+        window
+            .emit(PREVIEW_UPDATED_EVENT, &state)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        show_preview_window(app, &window, &work_area)?;
+        state
     };
 
-    set_preview_state(Some(state.clone()));
-    window
-        .emit(PREVIEW_UPDATED_EVENT, &state)
-        .map_err(|e| anyhow::anyhow!(e))?;
-    show_preview_window(app, &window, &work_area)?;
+    start_preview_interaction_tracking(app.clone(), window, state.clone());
 
     Ok(Some(state))
 }
 
 /// 隐藏预览窗口并清空当前预览状态。
-pub fn close_clipboard_preview(app: &AppHandle) -> Result<()> {
-    let request_id = PREVIEW_REQUEST_ID.fetch_add(1, Ordering::SeqCst) + 1;
+pub fn close_clipboard_preview(app: &AppHandle, request_id: u64) -> Result<()> {
+    if request_id == 0 || !claim_preview_request(request_id) {
+        return Ok(());
+    }
+
+    let _guard = preview_commit_lock();
     set_preview_state(None);
+    clear_preview_interaction(app);
 
     if let Some(window) = app.get_webview_window(CLIPBOARD_PREVIEW_WINDOW_LABEL) {
         window
@@ -193,8 +248,10 @@ pub fn close_clipboard_preview(app: &AppHandle) -> Result<()> {
 
 /// 立即隐藏预览窗口并清空状态；用于剪贴板窗口隐藏等不需要退出动画的路径。
 pub fn close_clipboard_preview_now(app: &AppHandle) -> Result<()> {
-    PREVIEW_REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+    let _guard = preview_commit_lock();
+    PREVIEW_SHOW_GENERATION.fetch_add(1, Ordering::SeqCst);
     set_preview_state(None);
+    clear_preview_interaction(app);
 
     if let Some(window) = app.get_webview_window(CLIPBOARD_PREVIEW_WINDOW_LABEL) {
         window
@@ -222,12 +279,30 @@ pub fn resume_after_clipboard_show() {
 
 /// 返回预览窗口最近一次收到的状态，供预览页首屏补拉。
 pub fn get_clipboard_preview_state() -> Result<Option<ClipboardPreviewState>> {
-    let guard = PREVIEW_STATE.lock().unwrap_or_else(|poisoned| {
-        log::error!("preview state mutex poisoned on get, recovering");
+    Ok(preview_state_snapshot())
+}
+
+/// 更新当前预览面板的可见矩形，用于只在实际面板范围开启鼠标输入。
+pub fn set_clipboard_preview_panel_rect(request_id: u64, panel_rect: PreviewRect) -> Result<()> {
+    validate_panel_rect(&panel_rect)?;
+
+    let Some(state) = preview_state_snapshot() else {
+        return Ok(());
+    };
+    if state.request_id != request_id {
+        return Ok(());
+    }
+
+    let mut guard = PREVIEW_INTERACTION.lock().unwrap_or_else(|poisoned| {
+        log::error!("preview interaction mutex poisoned on rect, recovering");
         poisoned.into_inner()
     });
+    if guard.request_id != request_id || guard.session_id != state.session_id {
+        return Ok(());
+    }
 
-    Ok(guard.clone())
+    guard.panel_rect = Some(panel_rect);
+    Ok(())
 }
 
 /// 按需重建预览窗口。预览窗口不再由 Tauri 配置预创建（改为空闲销毁 + 按需重建），
@@ -281,6 +356,266 @@ fn set_preview_state(state: Option<ClipboardPreviewState>) {
     *guard = state;
 }
 
+fn preview_state_snapshot() -> Option<ClipboardPreviewState> {
+    let guard = PREVIEW_STATE.lock().unwrap_or_else(|poisoned| {
+        log::error!("preview state mutex poisoned on get, recovering");
+        poisoned.into_inner()
+    });
+
+    guard.clone()
+}
+
+fn preview_commit_lock() -> std::sync::MutexGuard<'static, ()> {
+    PREVIEW_COMMIT_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// 客户端请求号必须严格递增；等于或小于已见最大值都视为过期请求。
+fn should_accept_preview_request(previous: u64, request_id: u64) -> bool {
+    request_id > previous
+}
+
+fn claim_preview_request(request_id: u64) -> bool {
+    let previous = PREVIEW_LATEST_REQUEST_ID.fetch_max(request_id, Ordering::SeqCst);
+
+    should_accept_preview_request(previous, request_id)
+}
+
+fn is_preview_request_current(request_id: u64) -> bool {
+    PREVIEW_LATEST_REQUEST_ID.load(Ordering::SeqCst) == request_id
+}
+
+fn is_preview_show_generation_current(generation: u64) -> bool {
+    PREVIEW_SHOW_GENERATION.load(Ordering::SeqCst) == generation
+}
+
+fn set_preview_interaction_runtime(state: &ClipboardPreviewState, panel_rect: Option<PreviewRect>) {
+    let mut guard = PREVIEW_INTERACTION.lock().unwrap_or_else(|poisoned| {
+        log::error!("preview interaction mutex poisoned on reset, recovering");
+        poisoned.into_inner()
+    });
+
+    *guard = PreviewInteractionRuntime {
+        request_id: state.request_id,
+        session_id: state.session_id,
+        panel_rect,
+        active: false,
+    };
+}
+
+fn clear_preview_interaction(app: &AppHandle) {
+    {
+        let mut guard = PREVIEW_INTERACTION.lock().unwrap_or_else(|poisoned| {
+            log::error!("preview interaction mutex poisoned on clear, recovering");
+            poisoned.into_inner()
+        });
+        *guard = PreviewInteractionRuntime::default();
+    }
+
+    if let Some(window) = app.get_webview_window(CLIPBOARD_PREVIEW_WINDOW_LABEL) {
+        if let Err(error) = apply_preview_input_capture(app, &window, false) {
+            log::warn!("reset preview input capture failed: {error}");
+        }
+    }
+}
+
+fn start_preview_interaction_tracking(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: ClipboardPreviewState,
+) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(PREVIEW_INTERACTION_POLL_MS)).await;
+
+            let Some(current) = preview_state_snapshot() else {
+                break;
+            };
+            if current.request_id != state.request_id || current.session_id != state.session_id {
+                break;
+            }
+
+            let panel_rect = {
+                let guard = PREVIEW_INTERACTION.lock().unwrap_or_else(|poisoned| {
+                    log::error!("preview interaction mutex poisoned on track, recovering");
+                    poisoned.into_inner()
+                });
+                if guard.request_id != state.request_id || guard.session_id != state.session_id {
+                    break;
+                }
+
+                guard.panel_rect
+            };
+            let Some(panel_rect) = panel_rect else {
+                continue;
+            };
+
+            let Ok(cursor) = window.cursor_position() else {
+                continue;
+            };
+            let inside = preview_panel_contains_physical(&state, panel_rect, cursor.x, cursor.y);
+            let transition = {
+                let mut guard = PREVIEW_INTERACTION.lock().unwrap_or_else(|poisoned| {
+                    log::error!("preview interaction mutex poisoned on transition, recovering");
+                    poisoned.into_inner()
+                });
+                if guard.request_id != state.request_id || guard.session_id != state.session_id {
+                    break;
+                }
+                if guard.active == inside {
+                    None
+                } else {
+                    guard.active = inside;
+                    Some(inside)
+                }
+            };
+            let Some(active) = transition else {
+                continue;
+            };
+
+            let payload = PreviewInteractionPayload {
+                request_id: state.request_id,
+                session_id: state.session_id,
+                active,
+            };
+            if let Err(error) = app.emit(PREVIEW_INTERACTION_EVENT, payload) {
+                log::warn!("emit {PREVIEW_INTERACTION_EVENT} failed: {error}");
+            }
+            if let Err(error) = apply_preview_input_capture(&app, &window, active) {
+                log::warn!("apply preview input capture failed: {error}");
+            }
+        }
+    });
+}
+
+fn preview_panel_contains_physical(
+    state: &ClipboardPreviewState,
+    panel_rect: PreviewRect,
+    cursor_x: f64,
+    cursor_y: f64,
+) -> bool {
+    let left = state.work_area.x as f64 + panel_rect.left * state.scale_factor;
+    let top = state.work_area.y as f64 + panel_rect.top * state.scale_factor;
+    let right = left + panel_rect.width * state.scale_factor;
+    let bottom = top + panel_rect.height * state.scale_factor;
+
+    cursor_x >= left && cursor_x < right && cursor_y >= top && cursor_y < bottom
+}
+
+fn apply_preview_input_capture(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    active: bool,
+) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = app;
+        window
+            .set_ignore_cursor_events(!active)
+            .map_err(|error| anyhow::anyhow!(error))?;
+
+        if active {
+            activate_windows_preview_focus(window)?;
+        } else {
+            deactivate_windows_preview_focus(window);
+        }
+
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let handle = app.clone();
+        app.run_on_main_thread(move || {
+            if let Ok(panel) = handle.get_webview_panel(CLIPBOARD_PREVIEW_WINDOW_LABEL) {
+                panel.set_ignores_mouse_events(!active);
+                if active {
+                    panel.make_key_window();
+                } else {
+                    panel.resign_key_window();
+                }
+            }
+        })
+        .map_err(|error| anyhow::anyhow!(error))?;
+
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn activate_windows_preview_focus(window: &WebviewWindow) -> Result<()> {
+    let raw_hwnd = window.hwnd().map_err(|error| anyhow::anyhow!(error))?;
+    let preview_hwnd = HWND(raw_hwnd.0 as isize);
+
+    {
+        let mut guard = PREVIEW_PREVIOUS_FOREGROUND
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if guard.is_none() {
+            let foreground = unsafe { GetForegroundWindow() };
+            if foreground.0 != 0 && foreground != preview_hwnd {
+                *guard = Some(foreground.0);
+            }
+        }
+    }
+
+    window
+        .set_focusable(true)
+        .map_err(|error| anyhow::anyhow!(error))?;
+    window.set_focus().map_err(|error| anyhow::anyhow!(error))?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn deactivate_windows_preview_focus(window: &WebviewWindow) {
+    let Ok(raw_hwnd) = window.hwnd() else {
+        clear_windows_preview_foreground();
+        return;
+    };
+    let preview_hwnd = HWND(raw_hwnd.0 as isize);
+    let should_restore = unsafe { GetForegroundWindow() } == preview_hwnd;
+
+    if let Err(error) = window.set_focusable(false) {
+        log::warn!("set preview window non-focusable failed: {error}");
+    }
+
+    if should_restore {
+        restore_windows_preview_foreground(preview_hwnd);
+    } else {
+        clear_windows_preview_foreground();
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn restore_windows_preview_foreground(preview_hwnd: HWND) {
+    let previous = PREVIEW_PREVIOUS_FOREGROUND
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take();
+    let Some(previous) = previous else {
+        return;
+    };
+
+    let previous_hwnd = HWND(previous);
+    if previous_hwnd == preview_hwnd || !unsafe { IsWindow(previous_hwnd).as_bool() } {
+        return;
+    }
+
+    if !unsafe { SetForegroundWindow(previous_hwnd).as_bool() } {
+        log::debug!("restore preview foreground window was rejected by Windows");
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn clear_windows_preview_foreground() {
+    PREVIEW_PREVIOUS_FOREGROUND
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take();
+}
+
 /// 判断剪贴板窗口是否仍处于可见状态，防止过期 hover 请求在剪贴板窗口隐藏后唤起预览。
 fn is_clipboard_window_visible(app: &AppHandle) -> bool {
     app.get_webview_window(CLIPBOARD_WINDOW_LABEL)
@@ -293,7 +628,7 @@ fn schedule_preview_window_hide(app: AppHandle, window: WebviewWindow, request_i
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(PREVIEW_HIDE_DELAY_MS));
 
-        if PREVIEW_REQUEST_ID.load(Ordering::SeqCst) != request_id {
+        if !is_preview_request_current(request_id) {
             return;
         }
         if get_clipboard_preview_state().ok().flatten().is_some() {
@@ -325,6 +660,15 @@ fn validate_anchor(anchor: &PreviewAnchorRect) -> Result<()> {
     if !values.iter().all(|value| value.is_finite()) || anchor.width <= 0.0 || anchor.height <= 0.0
     {
         return Err(anyhow::anyhow!("preview anchor is invalid").into());
+    }
+
+    Ok(())
+}
+
+fn validate_panel_rect(rect: &PreviewRect) -> Result<()> {
+    let values = [rect.left, rect.top, rect.width, rect.height];
+    if !values.iter().all(|value| value.is_finite()) || rect.width <= 0.0 || rect.height <= 0.0 {
+        return Err(anyhow::anyhow!("preview panel rect is invalid").into());
     }
 
     Ok(())
@@ -953,5 +1297,61 @@ mod tests {
         assert_eq!(source.width, 120.0);
         assert_eq!(source.height, 100.0);
         assert_eq!(source.center_y(), 190.0);
+    }
+
+    #[test]
+    fn preview_request_ids_must_strictly_increase() {
+        assert!(should_accept_preview_request(0, 1));
+        assert!(should_accept_preview_request(1, 2));
+        assert!(!should_accept_preview_request(2, 2));
+        assert!(!should_accept_preview_request(3, 2));
+    }
+
+    #[test]
+    fn preview_panel_hit_test_uses_physical_work_area_offset() {
+        let state = ClipboardPreviewState {
+            request_id: 1,
+            session_id: 1,
+            item_id: "item".to_owned(),
+            anchor: PreviewAnchorRect {
+                left: 0.0,
+                top: 0.0,
+                width: 100.0,
+                height: 40.0,
+            },
+            scale_factor: 2.0,
+            work_area: PreviewWorkArea {
+                x: 100,
+                y: 50,
+                width: 2400,
+                height: 1600,
+            },
+            clipboard_window: None,
+            layout: PreviewLayout {
+                overlay_rect: overlay(),
+                source_rect: PreviewRect {
+                    left: 0.0,
+                    top: 0.0,
+                    width: 100.0,
+                    height: 40.0,
+                },
+                panel_rect: overlay(),
+                placement: PreviewPlacement::Right,
+            },
+        };
+        let panel = PreviewRect {
+            left: 20.0,
+            top: 30.0,
+            width: 100.0,
+            height: 80.0,
+        };
+
+        assert!(preview_panel_contains_physical(&state, panel, 140.0, 110.0));
+        assert!(!preview_panel_contains_physical(
+            &state, panel, 340.0, 110.0
+        ));
+        assert!(!preview_panel_contains_physical(
+            &state, panel, 140.0, 270.0
+        ));
     }
 }

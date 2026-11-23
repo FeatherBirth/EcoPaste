@@ -1,7 +1,7 @@
 import { Empty } from "antd";
 import type { TFunction } from "i18next";
 import type { FC } from "react";
-import { useMemo } from "react";
+import { useState, type WheelEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 import type {
@@ -13,7 +13,6 @@ import VirtuosoScroller, {
   type VirtuosoScrollerChildrenProps,
 } from "@/components/VirtuosoScroller";
 import { cn } from "@/utils/cn";
-import { PREVIEW_TEXT_SOFT_WRAP_CHARS } from "../constants";
 
 export interface PreviewContentProps {
   payload: ClipboardPreviewPayload | null;
@@ -31,10 +30,9 @@ interface FilePreviewRowProps {
   file: ClipboardPreviewFileEntry;
 }
 
-const TEXT_VIRTUOSO_COMPONENTS = {
-  Footer: PreviewTextPadding,
-  Header: PreviewTextPadding,
-};
+const IMAGE_ZOOM_MIN = 0.25;
+const IMAGE_ZOOM_MAX = 4;
+const IMAGE_ZOOM_STEP = 1.15;
 
 const FILES_VIRTUOSO_COMPONENTS = {
   Footer: PreviewFilesPadding,
@@ -86,7 +84,9 @@ export const PreviewContent: FC<PreviewContentProps> = (props) => {
     );
   }
 
-  if (payload.kind === "image") return <ImageViewer payload={payload} />;
+  if (payload.kind === "image") {
+    return <ImageViewer key={payload.id} payload={payload} />;
+  }
 
   if (payload.kind === "files") return <FilesViewer payload={payload} />;
 
@@ -100,9 +100,6 @@ const TextViewer: FC<PayloadViewerProps> = (props) => {
   const { payload } = props;
   const { t } = useTranslation("preview");
   const text = payload.text ?? "";
-  const rows = useMemo(() => {
-    return buildTextPreviewRows(text);
-  }, [text]);
 
   if (text.length === 0) {
     return (
@@ -115,35 +112,15 @@ const TextViewer: FC<PayloadViewerProps> = (props) => {
     );
   }
 
-  return <VirtuosoScroller>{renderTextVirtuoso}</VirtuosoScroller>;
-
-  function renderTextVirtuoso(props: VirtuosoScrollerChildrenProps) {
-    const { scrollerRef } = props;
-
-    return (
-      <Virtuoso
-        components={TEXT_VIRTUOSO_COMPONENTS}
-        computeItemKey={computeTextRowKey}
-        itemContent={renderTextRow}
-        scrollerRef={scrollerRef}
-        totalCount={rows.length}
-      />
-    );
-  }
-
-  function computeTextRowKey(index: number) {
-    return index;
-  }
-
-  function renderTextRow(index: number) {
-    const row = rows[index] ?? "";
-
-    return (
-      <div className="min-h-5.5 whitespace-pre px-4 font-mono text-xs leading-5.5">
-        {row.length === 0 ? " " : row}
-      </div>
-    );
-  }
+  return (
+    <textarea
+      className="block h-full min-h-0 w-full flex-1 select-text resize-none overflow-auto whitespace-pre-wrap border-0 bg-transparent p-4 font-mono text-xs leading-5.5 outline-none"
+      readOnly
+      spellCheck={false}
+      value={text}
+      wrap="soft"
+    />
+  );
 };
 
 /**
@@ -152,6 +129,7 @@ const TextViewer: FC<PayloadViewerProps> = (props) => {
 const ImageViewer: FC<PayloadViewerProps> = (props) => {
   const { payload } = props;
   const { t } = useTranslation("preview");
+  const [zoom, setZoom] = useState(1);
   const imageWidth = payload.imageWidth ?? void 0;
   const imageHeight = payload.imageHeight ?? void 0;
 
@@ -166,19 +144,38 @@ const ImageViewer: FC<PayloadViewerProps> = (props) => {
     );
   }
 
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const factor = event.deltaY < 0 ? IMAGE_ZOOM_STEP : 1 / IMAGE_ZOOM_STEP;
+    setZoom((current) => {
+      return clamp(current * factor, IMAGE_ZOOM_MIN, IMAGE_ZOOM_MAX);
+    });
+  };
+
   return (
-    <div className="flex min-h-24 items-center justify-center p-4">
-      <AssetImage
-        alt={t("image.alt")}
-        className="block h-auto max-h-100 max-w-full object-contain"
-        draggable={false}
-        height={imageHeight}
-        src={payload.imagePath}
-        width={imageWidth}
-      />
+    <div
+      className="min-h-24 overflow-auto overscroll-contain"
+      onWheel={handleWheel}
+    >
+      <div className="flex min-h-full min-w-full items-center justify-center p-4">
+        <AssetImage
+          alt={t("image.alt")}
+          className="block h-auto max-h-100 max-w-full object-contain"
+          draggable={false}
+          height={imageHeight}
+          src={payload.imagePath}
+          style={{ transform: `scale(${zoom})` }}
+          width={imageWidth}
+        />
+      </div>
     </div>
   );
 };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
 /**
  * 文件预览：虚拟列表展示路径、文件名、存在状态与基础大小。
@@ -188,7 +185,7 @@ const FilesViewer: FC<PayloadViewerProps> = (props) => {
   const { t } = useTranslation("preview");
 
   if (payload.singleImagePreview && payload.imagePath && payload.imageExists) {
-    return <ImageViewer payload={payload} />;
+    return <ImageViewer key={payload.id} payload={payload} />;
   }
 
   if (payload.files.length === 0) {
@@ -253,13 +250,6 @@ const FilesViewer: FC<PayloadViewerProps> = (props) => {
 };
 
 /**
- * 虚拟文本列表上下留白。
- */
-function PreviewTextPadding() {
-  return <div className="h-4" />;
-}
-
-/**
  * 虚拟文件列表顶部留白。
  */
 function PreviewFilesPadding() {
@@ -309,30 +299,6 @@ const FilePreviewRow: FC<FilePreviewRowProps> = (props) => {
     </div>
   );
 };
-
-/**
- * 将长文本拆成虚拟行，超长单行按固定字符数软切块。
- */
-function buildTextPreviewRows(text: string) {
-  const rows: string[] = [];
-
-  for (const line of text.split("\n")) {
-    if (line.length === 0) {
-      rows.push("");
-      continue;
-    }
-
-    for (
-      let start = 0;
-      start < line.length;
-      start += PREVIEW_TEXT_SOFT_WRAP_CHARS
-    ) {
-      rows.push(line.slice(start, start + PREVIEW_TEXT_SOFT_WRAP_CHARS));
-    }
-  }
-
-  return rows;
-}
 
 /**
  * 生成 Content Viewer 标题。

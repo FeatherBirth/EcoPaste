@@ -18,6 +18,7 @@ import {
   PREVIEW_PANEL_MAX_WIDTH,
   PREVIEW_PANEL_MIN_HEIGHT,
   PREVIEW_PANEL_MIN_WIDTH,
+  PREVIEW_TEXT_DEFAULT_HEIGHT,
   PREVIEW_TEXT_ROW_HEIGHT,
   PREVIEW_TEXT_SOFT_WRAP_CHARS,
   PREVIEW_TEXT_VERTICAL_PADDING,
@@ -230,7 +231,10 @@ function resolveTextPanelSize(
 
   return {
     height: clamp(
-      PREVIEW_PANEL_HEADER_HEIGHT + contentHeight,
+      Math.max(
+        PREVIEW_TEXT_DEFAULT_HEIGHT,
+        PREVIEW_PANEL_HEADER_HEIGHT + contentHeight,
+      ),
       PREVIEW_PANEL_MIN_HEIGHT,
       maxPanelHeight,
     ),

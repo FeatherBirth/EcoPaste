@@ -176,7 +176,9 @@ window geometry, and the preview measurement lifecycle.
 
 #### 2. Signatures
 
-- Command: `show_clipboard_preview(item_id: String, anchor: PreviewAnchorRect)`
+- Command:
+  `show_clipboard_preview(item_id: String, anchor: PreviewAnchorRect, request_id: u64)`
+- Close command: `close_clipboard_preview(request_id: u64)`
 - Anchor fields: `{ left: f64, top: f64, width: f64, height: f64 }`
 - TypeScript mirror: `PreviewAnchorRect`
 - Preview measurement hook:
@@ -253,7 +255,109 @@ showClipboardPreview(item.id, {
   left: rect.left,
   top: rect.top,
   width: rect.width,
-});
+}, requestId);
+```
+
+### Preview Request Ordering and Interactive Panel Capture
+
+#### 1. Scope / Trigger
+
+Changing preview show/close ordering, click-through behavior, panel hit testing,
+or text/image interaction crosses React intent, Tauri IPC concurrency, Rust
+window focus, and platform input routing.
+
+#### 2. Signatures
+
+- Commands:
+  - `show_clipboard_preview(item_id, anchor, request_id) -> Option<ClipboardPreviewState>`
+  - `close_clipboard_preview(request_id) -> ()`
+  - `set_clipboard_preview_panel_rect(request_id, panel_rect) -> ()`
+- Event:
+  `preview://interaction { requestId, sessionId, active }`
+- Runtime rect: `{ left, top, width, height }` in overlay CSS pixels.
+- Text viewer: read-only `textarea`; image zoom range `0.25..=4.0`.
+
+#### 3. Contracts
+
+- Frontend request ids are monotonic process-local numbers based on `Date.now()`
+  and apply to both show and close.
+- Rust rejects show/close ids less than or equal to the largest accepted id.
+- Internal immediate close increments a show generation, so an older async show
+  cannot revive after clipboard hide/destroy.
+- Preview mouse input starts click-through. Rust polls the cursor, enables input
+  only inside the reported actual panel rect, emits `preview://interaction`, and
+  restores click-through immediately after leaving.
+- While interaction is active, the clipboard preview controller suppresses blur
+  closure and cancels hover-hide timers. Leaving the panel resumes the normal
+  240ms hide buffer.
+- Windows stores/restores the previous foreground HWND around panel focus.
+  macOS uses the nonactivating floating panel as key while the pointer is inside.
+- Text preview defaults to 360 logical pixels and is capped by the existing
+  480px panel limit. Scrollbars must appear only when content actually overflows.
+
+#### 4. Validation & Error Matrix
+
+- Duplicate or older request id -> stale show/close is a no-op.
+- Non-current request/session emits panel rect -> ignored.
+- Invalid panel rect -> `preview panel rect is invalid`.
+- Pointer outside actual panel -> window remains click-through.
+- Pointer inside actual panel -> input enabled, interaction event `active=true`.
+- Pointer leaves -> input disabled, interaction event `active=false`, normal hide
+  buffer resumes.
+- Cursor polling/focus failure -> preview lifecycle remains functional and only
+  the optional interaction enhancement degrades.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: close arrives while an older show IPC is still pending; the older show is
+  rejected and the preview does not flash back.
+- Good: pointer moves from a card into the tall text panel; selection and wheel
+  scrolling work, then leaving closes the preview.
+- Base: pointer stays outside the panel and all clicks reach the underlying app.
+- Bad: incrementing a frontend-only request id while Rust still accepts the late
+  show; this can reopen a preview after close.
+- Bad: treating the full 480px placement allowance as interactive instead of the
+  final measured panel rect.
+- Bad: estimating CJK wrapped text with the old 32-character row rule and showing
+  a scrollbar in an artificially short panel.
+
+#### 6. Tests Required
+
+- `preview_request_ids_must_strictly_increase` asserts equal/lower ids are stale.
+- `preview_panel_hit_test_uses_physical_work_area_offset` asserts scale/work-area
+  conversion and exclusive right/bottom edges.
+- `pnpm tsc` covers request-id and interaction event payloads.
+- Manual Windows validates rapid card switching, panel entry/leave, click-through,
+  text selection/copy, image wheel zoom, and default text height.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```tsx
+showClipboardPreview(item.id, rect);
+// A concurrent close cannot invalidate this in-flight show.
+```
+
+Correct:
+
+```tsx
+const requestId = nextPreviewRequestId();
+await showClipboardPreview(item.id, rect, requestId);
+```
+
+Wrong:
+
+```rust
+// Every full-monitor overlay ignores or captures the pointer permanently.
+window.set_ignore_cursor_events(false)?;
+```
+
+Correct:
+
+```rust
+// Capture only while the cursor is inside the reported panel rect.
+window.set_ignore_cursor_events(!inside_panel)?;
 ```
 
 ## Settings Events and Mirrors

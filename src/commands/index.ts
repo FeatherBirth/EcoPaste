@@ -114,6 +114,12 @@ export interface ClipboardPreviewLayout {
   placement: ClipboardPreviewPlacement;
 }
 
+export interface ClipboardPreviewInteractionPayload {
+  active: boolean;
+  requestId: number;
+  sessionId: number;
+}
+
 export interface ClipboardPreviewFileEntry {
   path: string;
   name: string;
@@ -1331,22 +1337,41 @@ export const setClipboardWindowEditing = async (editing: boolean) => {
 export const showClipboardPreview = (
   itemId: string,
   anchor: PreviewAnchorRect,
+  requestId: number,
 ) => {
   return call<ClipboardPreviewState | null>(
     TAURI_COMMAND.SHOW_CLIPBOARD_PREVIEW,
     "commands:labels.openPreview",
-    { anchor, itemId },
+    { anchor, itemId, requestId },
   );
 };
 
 /**
  * 关闭剪贴板系统级预览 overlay。
  */
-export const closeClipboardPreview = () => {
+export const closeClipboardPreview = (requestId: number) => {
   return call<void>(
     TAURI_COMMAND.CLOSE_CLIPBOARD_PREVIEW,
     "commands:labels.closePreview",
+    { requestId },
   );
+};
+
+/**
+ * 上报实际可见面板矩形，让 Rust 只在面板区域临时接收鼠标事件。
+ */
+export const setClipboardPreviewPanelRect = async (
+  requestId: number,
+  panelRect: ClipboardPreviewRect,
+) => {
+  try {
+    await invoke<void>(TAURI_COMMAND.SET_CLIPBOARD_PREVIEW_PANEL_RECT, {
+      panelRect,
+      requestId,
+    });
+  } catch (error) {
+    log.error("set clipboard preview panel rect failed", toAppError(error));
+  }
 };
 
 /**

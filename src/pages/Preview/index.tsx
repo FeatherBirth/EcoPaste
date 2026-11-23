@@ -1,11 +1,12 @@
 import { useMount } from "ahooks";
 import { Spin } from "antd";
 import { motion } from "motion/react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useMemo, useState } from "react";
 import { useSnapshot } from "valtio";
 import {
   type ClipboardPreviewState,
   getClipboardPreviewState,
+  setClipboardPreviewPanelRect,
 } from "@/commands";
 import { TAURI_EVENT } from "@/constants/events";
 import { WINDOW_LABEL } from "@/constants/windows";
@@ -80,6 +81,15 @@ const Preview: FC = () => {
   const panelRect = visibleState
     ? resolveDynamicPanelRect(visibleState.layout, effectivePanelSize)
     : EMPTY_RECT;
+  const reportedPanelRect = useMemo(() => {
+    return {
+      height: panelRect.height,
+      left: panelRect.left,
+      top: panelRect.top,
+      width: panelRect.width,
+    };
+  }, [panelRect.height, panelRect.left, panelRect.top, panelRect.width]);
+  const previewRequestId = previewState?.requestId ?? null;
   const panelMeasureStyle = visibleState
     ? resolveMeasurePanelStyle(visibleState.layout)
     : void 0;
@@ -112,6 +122,12 @@ const Preview: FC = () => {
       setPreviewState(event.payload);
     },
   );
+
+  useEffect(() => {
+    if (!active || previewRequestId === null) return;
+
+    void setClipboardPreviewPanelRect(previewRequestId, reportedPanelRect);
+  }, [active, previewRequestId, reportedPanelRect]);
 
   const handleBeforeDestroy = (event: { payload: BeforeDestroyPayload }) => {
     if (event.payload.label !== WINDOW_LABEL.PREVIEW) return;

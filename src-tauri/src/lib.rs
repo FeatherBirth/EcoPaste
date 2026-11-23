@@ -157,6 +157,7 @@ pub fn run() {
             commands::set_clipboard_window_editing,
             commands::show_clipboard_preview,
             commands::close_clipboard_preview,
+            commands::set_clipboard_preview_panel_rect,
             commands::get_clipboard_preview_state,
             commands::get_settings,
             commands::suspend_global_shortcuts,

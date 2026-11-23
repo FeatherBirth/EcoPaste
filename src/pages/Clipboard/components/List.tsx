@@ -144,6 +144,7 @@ const List: FC = () => {
     handleItemPointerLeave,
     handleKeyboardPreviewMove,
     handlePreviewAreaPointerLeave,
+    handlePreviewAreaPointerMove,
     handlePreviewSpaceDown,
     previewSession,
   } = useClipboardPreviewController({
@@ -814,6 +815,7 @@ const List: FC = () => {
     <div
       className="relative flex-1 overflow-hidden"
       onPointerLeave={handlePreviewAreaPointerLeave}
+      onPointerMove={handlePreviewAreaPointerMove}
       role="listbox"
     >
       <VirtuosoScroller>{renderVirtuoso}</VirtuosoScroller>

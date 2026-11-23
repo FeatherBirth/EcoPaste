@@ -140,6 +140,7 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
           "border-ant-primary bg-ant-container": item.isPinned && !isSelected,
         },
       )}
+      data-clipboard-item-id={item.id}
       draggable
       onAuxClick={onAuxClick}
       onContextMenu={handleContextMenu}

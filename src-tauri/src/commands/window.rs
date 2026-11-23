@@ -5,7 +5,7 @@ use crate::settings::WindowPosition;
 use crate::window;
 
 pub use window::lifecycle::LifecycleSnapshot;
-pub use window::preview::{ClipboardPreviewState, PreviewAnchorRect};
+pub use window::preview::{ClipboardPreviewState, PreviewAnchorRect, PreviewRect};
 
 #[tauri::command]
 pub async fn show_window(app: AppHandle, label: String) -> Result<()> {
@@ -119,13 +119,22 @@ pub async fn show_clipboard_preview(
     app: AppHandle,
     item_id: String,
     anchor: PreviewAnchorRect,
+    request_id: u64,
 ) -> Result<Option<ClipboardPreviewState>> {
-    window::preview::show_clipboard_preview(&app, item_id, anchor).await
+    window::preview::show_clipboard_preview(&app, item_id, anchor, request_id).await
 }
 
 #[tauri::command]
-pub async fn close_clipboard_preview(app: AppHandle) -> Result<()> {
-    window::preview::close_clipboard_preview(&app)
+pub async fn close_clipboard_preview(app: AppHandle, request_id: u64) -> Result<()> {
+    window::preview::close_clipboard_preview(&app, request_id)
+}
+
+#[tauri::command]
+pub async fn set_clipboard_preview_panel_rect(
+    request_id: u64,
+    panel_rect: PreviewRect,
+) -> Result<()> {
+    window::preview::set_clipboard_preview_panel_rect(request_id, panel_rect)
 }
 
 #[tauri::command]

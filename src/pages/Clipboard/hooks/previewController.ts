@@ -15,6 +15,7 @@ export type PreviewTrigger = "keyboard" | "hover";
 
 export interface PreviewSession {
   itemId: string;
+  requestId: number;
   trigger: PreviewTrigger;
 }
 
@@ -54,9 +55,12 @@ export function clearHoverTimer(timerRef: { current: number | null }) {
 /**
  * 非关键路径关闭预览，失败只写日志。
  */
-export async function closeClipboardPreviewSilently(reason: string) {
+export async function closeClipboardPreviewSilently(
+  reason: string,
+  requestId: number,
+) {
   try {
-    await closeClipboardPreview();
+    await closeClipboardPreview(requestId);
   } catch (error) {
     log.error("close clipboard preview failed", { error, reason });
   }

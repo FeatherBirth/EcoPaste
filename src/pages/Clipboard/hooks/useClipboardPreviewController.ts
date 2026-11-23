@@ -1,7 +1,16 @@
 import { useEventListener } from "ahooks";
-import { useEffect, useRef, useState } from "react";
+import {
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useSnapshot } from "valtio";
-import { showClipboardPreview } from "@/commands";
+import {
+  type ClipboardPreviewInteractionPayload,
+  showClipboardPreview,
+} from "@/commands";
 import { TAURI_EVENT } from "@/constants/events";
 import { WINDOW_LABEL } from "@/constants/windows";
 import { useKeyboardEvent } from "@/hooks/useKeyboardEvent";
@@ -53,7 +62,12 @@ export function useClipboardPreviewController(
   const hoverHideTimerRef = useRef<number | null>(null);
   const clipboardWindowVisibleRef = useRef(true);
   const previewSessionRef = useRef<PreviewSession | null>(null);
-  const previewOpenRequestIdRef = useRef(0);
+  const previewOpenRequestIdRef = useRef(Date.now());
+  const previewInteractionActiveRef = useRef(false);
+  const nextPreviewRequestId = useCallback(() => {
+    previewOpenRequestIdRef.current += 1;
+    return previewOpenRequestIdRef.current;
+  }, []);
   const keyboardPreviewFrameRef = useRef<number | null>(null);
   const keyboardPreviewTargetRef = useRef<KeyboardPreviewTarget | null>(null);
   const pendingHoverTargetRef = useRef<ClipboardItem | null>(null);
@@ -65,8 +79,9 @@ export function useClipboardPreviewController(
       clearHoverTimer(hoverTimerRef);
       clearHoverTimer(hoverHideTimerRef);
       previewSessionRef.current = null;
+      previewInteractionActiveRef.current = false;
       setPreviewSession(null);
-      closeClipboardPreviewSilently("hoverDisabled");
+      closeClipboardPreviewSilently("hoverDisabled", nextPreviewRequestId());
       return;
     }
 
@@ -77,13 +92,15 @@ export function useClipboardPreviewController(
       clearHoverTimer(hoverTimerRef);
       clearHoverTimer(hoverHideTimerRef);
       previewSessionRef.current = null;
+      previewInteractionActiveRef.current = false;
       setPreviewSession(null);
-      closeClipboardPreviewSilently("spaceDisabled");
+      closeClipboardPreviewSilently("spaceDisabled", nextPreviewRequestId());
     }
   }, [
     previewSettings.hoverEnabled,
     previewSettings.spaceEnabled,
     previewSession?.trigger,
+    nextPreviewRequestId,
   ]);
 
   useEffect(() => {
@@ -112,7 +129,33 @@ export function useClipboardPreviewController(
 
   useTauriListen(TAURI_EVENT.WINDOW_VISIBILITY, handleWindowVisibility);
 
+  /**
+   * 指针进入或离开真实预览面板时，暂停或恢复 hover 隐藏计时。
+   */
+  const handlePreviewInteraction = (event: {
+    payload: ClipboardPreviewInteractionPayload;
+  }) => {
+    const session = previewSessionRef.current;
+    if (
+      session?.trigger !== "hover" ||
+      event.payload.requestId !== session?.requestId
+    ) {
+      return;
+    }
+
+    previewInteractionActiveRef.current = event.payload.active;
+    if (event.payload.active) {
+      cancelHoverHide();
+      return;
+    }
+
+    scheduleHoverHide("previewPanelLeave");
+  };
+
+  useTauriListen(TAURI_EVENT.PREVIEW_INTERACTION, handlePreviewInteraction);
+
   const handleWindowBlur = () => {
+    if (previewInteractionActiveRef.current) return;
     if (!previewSessionRef.current) return;
 
     closePreview("windowBlur");
@@ -130,12 +173,13 @@ export function useClipboardPreviewController(
    * 关闭预览窗口并清理本地预览会话。
    */
   const closePreview = (reason: string) => {
-    previewOpenRequestIdRef.current += 1;
+    const requestId = nextPreviewRequestId();
     cancelHoverPreview();
     cancelHoverHide();
     cancelKeyboardPreviewFrame();
+    previewInteractionActiveRef.current = false;
     commitPreviewSession(null);
-    closeClipboardPreviewSilently(reason);
+    closeClipboardPreviewSilently(reason, requestId);
   };
 
   /**
@@ -160,6 +204,7 @@ export function useClipboardPreviewController(
     if (!previewSettings.hoverEnabled) return;
 
     if (previewSessionRef.current?.trigger === "hover") {
+      cancelHoverHide();
       if (previewSessionRef.current.itemId === item.id) return;
 
       scheduleHoverPreviewOpen(item, 0);
@@ -184,6 +229,23 @@ export function useClipboardPreviewController(
    */
   const handlePreviewAreaPointerLeave = () => {
     scheduleHoverHide("hoverAreaLeave");
+  };
+
+  /**
+   * 列表背景不承载预览目标；指针移入空白区时只启动一次隐藏缓冲。
+   */
+  const handlePreviewAreaPointerMove = (
+    event: PointerEvent<HTMLDivElement>,
+  ) => {
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("[data-clipboard-item-id]")
+    ) {
+      return;
+    }
+
+    scheduleHoverHide("hoverAreaBackground", false);
   };
 
   /**
@@ -339,19 +401,22 @@ export function useClipboardPreviewController(
 
     if (!rect || rect.width <= 0 || rect.height <= 0) return;
 
-    const requestId = previewOpenRequestIdRef.current + 1;
-    previewOpenRequestIdRef.current = requestId;
-    commitPreviewSession({ itemId: item.id, trigger });
+    const requestId = nextPreviewRequestId();
+    commitPreviewSession({ itemId: item.id, requestId, trigger });
 
     try {
       if (!clipboardWindowVisibleRef.current) return;
 
-      const state = await showClipboardPreview(item.id, {
-        height: rect.height,
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-      });
+      const state = await showClipboardPreview(
+        item.id,
+        {
+          height: rect.height,
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+        },
+        requestId,
+      );
 
       if (requestId !== previewOpenRequestIdRef.current) return;
       if (!state || !clipboardWindowVisibleRef.current) {
@@ -388,14 +453,20 @@ export function useClipboardPreviewController(
   /**
    * 鼠标离开剪贴板项后进入准备隐藏状态，短时间内进入新项会取消隐藏。
    */
-  const scheduleHoverHide = (reason: string) => {
+  const scheduleHoverHide = (reason: string, restart = true) => {
     cancelHoverPreview();
-    cancelHoverHide();
+    if (restart) {
+      cancelHoverHide();
+    } else if (hoverHideTimerRef.current !== null) {
+      return;
+    }
 
     if (previewSessionRef.current?.trigger !== "hover") return;
 
     hoverHideTimerRef.current = window.setTimeout(() => {
       hoverHideTimerRef.current = null;
+      if (previewInteractionActiveRef.current) return;
+
       closeHoverPreview(reason);
     }, HOVER_HIDE_BUFFER_MS);
   };
@@ -526,6 +597,7 @@ export function useClipboardPreviewController(
     handleItemPointerLeave,
     handleKeyboardPreviewMove,
     handlePreviewAreaPointerLeave,
+    handlePreviewAreaPointerMove,
     handlePreviewSpaceDown,
     previewSession,
   };
