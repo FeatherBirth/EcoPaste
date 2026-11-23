@@ -1,88 +1,92 @@
 <div align="center">
   <img src="./public/logo.png" alt="EcoPaste" width="96" height="96" />
 
-# EcoPaste
+  # EcoPaste
 
-**A local-first clipboard manager for macOS and Windows.**
-
-English | [简体中文](./README.zh-CN.md)
-
-  <br />
+  **适用于 macOS 与 Windows 的本地优先剪贴板管理器。**
 
   <img alt="Tauri v2" src="https://img.shields.io/badge/Tauri-v2-24c8db?style=flat-square" />
-  <img alt="Rust first" src="https://img.shields.io/badge/Rust-first-b7410e?style=flat-square" />
+  <img alt="Rust First" src="https://img.shields.io/badge/Rust-First-b7410e?style=flat-square" />
   <img alt="React 19" src="https://img.shields.io/badge/React-19-61dafb?style=flat-square" />
-  <img alt="macOS" src="https://img.shields.io/badge/macOS-supported-000000?style=flat-square&logo=apple&logoColor=white" />
   <img alt="Windows" src="https://img.shields.io/badge/Windows-supported-0078d4?style=flat-square&logo=windows&logoColor=white" />
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-supported-000000?style=flat-square&logo=apple&logoColor=white" />
 </div>
 
-## About
+EcoPaste 使用 Rust-First 的 Tauri 架构，专注快速复制、搜索、预览和复用剪贴板内容。历史数据、图片资源与设置默认保存在本机，并针对 Windows 与 macOS 提供原生快捷键、托盘和窗口体验。
 
-EcoPaste is an open-source desktop clipboard manager built with a Rust-first Tauri architecture: durable behavior lives in Rust, while the React frontend focuses on rendering and interaction.
+## 下载与安装
 
-The app is designed to be fast, lightweight, and maintainable, with local storage, SQLite search, native shortcuts, tray integration, backup support, and a focused cross-platform surface for macOS and Windows.
+| 平台 | 下载 |
+| --- | --- |
+| Windows x64 | [安装包](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste_x64-setup.exe) |
+| Windows ARM64 | [前往最新 Release](https://github.com/FeatherBirth/EcoPaste/releases/latest) 选择 `arm64-setup.exe` |
+| macOS Apple Silicon | [DMG](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-arm64.dmg) |
+| macOS Intel | [DMG](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-x64.dmg) |
 
-## Features
+Windows 安装器会覆盖升级现有安装并保留用户数据。macOS 首次运行若被系统拦截，可在“系统设置 → 隐私与安全性”中选择“仍要打开”。
 
-- Capture clipboard history for plain text, HTML, RTF, images, files, and folders.
-- Search clipboard content and notes with SQLite FTS5.
-- Filter history by source application and content type.
-- Protect sensitive content by skipping high-confidence secrets such as private keys, service tokens, AWS keys, and JWTs.
-- Preview text, images, and files in a dedicated preview window.
-- Keep previews interactive with selectable text, scrolling, whole-panel image zoom, and reliable cleanup when the pointer moves away.
-- Select multiple history entries with ordered badges, then batch paste in the chosen order.
-- Paste, copy, copy as plain text, reveal files, open links, add notes, pin, favorite, delete, and drag items out to other apps.
-- Organize history with favorites, pinned items, notes, custom groups, and configurable item actions.
-- Tune capture order, size limits, retention, display density, list sorting, and window behavior.
-- Export and import `.ecopastebak` backups, including encrypted backup containers.
-- Keep clipboard data, resources, and settings local to your machine.
-- Check signed updates from this repository's GitHub Releases.
-- Follow the Windows system proxy automatically or choose a direct/custom update proxy.
+## 核心功能
 
-## Updates
+### 收集与查找
 
-EcoPaste reads the signed updater manifest from
-`https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json`.
-Each release includes signed packages for Windows x64/ARM64 and macOS
-Intel/Apple Silicon.
+- 支持纯文本、HTML、RTF、图片、文件和文件夹。
+- 使用 SQLite FTS5 搜索正文与备注，并按来源应用、内容类型、自定义分组过滤。
+- 可配置采集顺序、大小上限、清理周期、最大条数和列表排序。
+- 自动识别并跳过私钥、Token、AWS Key、JWT 等高置信敏感内容。
 
-Version 1.6.0 introduces the current updater signing identity. Install 1.6.0
-manually once; later versions can be downloaded and installed from the in-app
-update window.
+### 选择与复用
 
-Update network access defaults to the system proxy. If GitHub is reachable only
-through a specific local proxy, open Preferences -> Data -> Updates and select
-the custom proxy mode.
+- 支持单击、双击、中键、数字快捷键、右键菜单和拖出到其他应用。
+- 可复制、纯文本复制、粘贴、纯文本粘贴、收藏、置顶、备注、删除和定位文件。
+- 支持有序多选与批量粘贴：Ctrl/Cmd 单击追加选择，Shift 单击连续选择，按序号顺序粘贴。
+- 实验性混合粘贴可按顺序处理图片和文件；纯文本选择仍合并为一次粘贴。
 
-## Install on Windows
+### 交互式预览
 
-Windows x64 users can install the latest release with one PowerShell command:
+- 文本预览随内容伸缩，达到列表高度上限后自动滚动。
+- 文本可直接拖选、全选和复制，鼠标移入预览框时不会关闭。
+- 图片预览支持滚轮、Ctrl + 滚轮和 Windows 精确触摸板缩放，面板与图片整体等比缩放。
+- 快速切换条目、移入空白区域或切换应用时，旧预览会可靠关闭。
 
-```powershell
-irm https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1 | iex
+### 本地存储与备份
+
+- 历史记录、图片、图标、设置和日志均保存在本机。
+- 支持 `.ecopastebak` 备份导入导出、加密备份、合并导入和覆盖恢复。
+- 支持自定义数据目录、缓存清理和旧版数据迁移。
+
+### Windows 增强
+
+- 可用 Win+V 唤起 EcoPaste，替代系统剪贴板面板。
+- 支持开机启动、管理员权限启动、焦点保护、托盘与任务栏控制。
+- 可自动修复部分电脑“截图后无法直接粘贴”的纯图片格式问题，默认关闭。
+- Excel/WPS 表格复制会同时保留图片和文本语义，不改变目标应用原有的粘贴行为。
+
+## 1.5 以后重点更新
+
+- **1.5.1**：提供经过校验的 GitHub Release Windows 安装脚本；完善 Excel/WPS 表格多格式复制与纯文本粘贴。
+- **1.5.2**：修复不同 DPI 显示器、远程桌面和跨屏移动后的窗口尺寸问题。
+- **1.5.3**：修复预览闪烁、连接线错位和图片首次预览尺寸不足。
+- **1.6.0**：加入可靠预览生命周期、可选文本/可缩放预览、有序多选批量粘贴、截图格式修复、跨屏 DPI 对齐和品牌化安装器。
+- **1.6.0**：自动更新切换到当前 GitHub Release，支持 Windows/macOS 四平台签名产物与系统代理、直连、自定义代理三种模式。
+
+## 自动更新
+
+应用内更新读取当前仓库的签名清单：
+
+```text
+https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json
 ```
 
-The command downloads and runs the latest installer script. The script verifies
-the package SHA-256 checksum, upgrades the existing machine-wide installation
-without running a separate uninstaller, preserves user data, and launches
-EcoPaste once. Windows will show the normal UAC elevation prompt.
+更新网络默认跟随系统代理。若 GitHub 只能通过特定代理访问，可在“偏好设置 → 数据 → 更新”中选择自定义代理。
 
-## Install on macOS
+从 1.5.x 升级到 1.6.0 需要手动安装一次，以切换到新的 updater 签名身份；之后的版本可在应用内自动检查、下载和安装。
 
-Download the DMG for your Mac:
+## 开发
 
-- [Apple Silicon (M1/M2/M3/M4)](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-arm64.dmg)
-- [Intel](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-x64.dmg)
+技术栈：Tauri v2、Rust、React 19、Ant Design、SQLite、Vite、pnpm。
 
-Open the DMG and drag EcoPaste into `Applications`. If macOS blocks the first
-launch, open System Settings -> Privacy & Security and choose Open Anyway, or
-Control-click EcoPaste in Finder and choose Open.
+开发环境、架构说明和质量检查命令见[贡献指南](./CONTRIBUTING.zh-CN.md)。
 
-## Contributing
+## 开源协议
 
-Development setup, architecture notes, quality checks, and contribution
-expectations live in the [contribution guide](./CONTRIBUTING.md).
-
-## License
-
-EcoPaste is licensed under the [Apache License 2.0](./LICENSE).
+EcoPaste 基于 [Apache License 2.0](./LICENSE) 开源。
