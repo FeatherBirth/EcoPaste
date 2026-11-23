@@ -7,6 +7,8 @@
 
 #![allow(clippy::unused_unit)]
 
+#[cfg(target_os = "windows")]
+use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::thread;
@@ -26,15 +28,27 @@ use super::{get_window, lifecycle, CLIPBOARD_PREVIEW_WINDOW_LABEL, CLIPBOARD_WIN
 use tauri_nspanel::{tauri_panel, ManagerExt, PanelLevel, WebviewWindowExt};
 
 #[cfg(target_os = "windows")]
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
+#[cfg(target_os = "windows")]
+use windows::Win32::System::SystemServices::GC_ZOOM;
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::Input::Touch::{
+    CloseGestureInfoHandle, GetGestureInfo, SetGestureConfig, GESTURECONFIG, GESTUREINFO, GID_ZOOM,
+    HGESTUREINFO,
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, IsWindow, SetForegroundWindow, SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+    EnumChildWindows, GetForegroundWindow, IsWindow, SetForegroundWindow, SetWindowPos, GF_BEGIN,
+    GF_END, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, WM_GESTURE,
+    WM_GESTURENOTIFY,
 };
 
 const PREVIEW_UPDATED_EVENT: &str = "preview://updated";
 const PREVIEW_INTERACTION_EVENT: &str = "preview://interaction";
+#[cfg(target_os = "windows")]
+const PREVIEW_GESTURE_EVENT: &str = "preview://gesture";
 const PREVIEW_PANEL_WIDTH: f64 = 480.0;
 const PREVIEW_PANEL_HEIGHT: f64 = 480.0;
 const PREVIEW_PANEL_GAP: f64 = 40.0;
@@ -53,6 +67,13 @@ static PREVIEW_INTERACTION: LazyLock<Mutex<PreviewInteractionRuntime>> =
     LazyLock::new(|| Mutex::new(PreviewInteractionRuntime::default()));
 #[cfg(target_os = "windows")]
 static PREVIEW_PREVIOUS_FOREGROUND: Mutex<Option<isize>> = Mutex::new(None);
+#[cfg(target_os = "windows")]
+static PREVIEW_GESTURE_APP: LazyLock<Mutex<Option<AppHandle>>> = LazyLock::new(|| Mutex::new(None));
+#[cfg(target_os = "windows")]
+static PREVIEW_GESTURE_WINDOWS: LazyLock<Mutex<Vec<isize>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+#[cfg(target_os = "windows")]
+static PREVIEW_GESTURE_DISTANCE: AtomicU64 = AtomicU64::new(0);
 /// 串行化建窗：多个预览请求（如连续 hover）可能并发走到「检查不存在 → 建窗」，
 /// 都过了存在性检查会触发重复 label 建窗报错。建窗都来自命令/后台线程、主线程从不持锁，
 /// 不会与 builder 内部的主线程派发互锁。
@@ -152,6 +173,15 @@ struct PreviewInteractionPayload {
     active: bool,
 }
 
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewGesturePayload {
+    request_id: u64,
+    session_id: u64,
+    factor: f64,
+}
+
 /// 打开或重定向预览窗口，并把最新预览状态广播到预览 webview。
 pub async fn show_clipboard_preview(
     app: &AppHandle,
@@ -221,6 +251,8 @@ pub async fn show_clipboard_preview(
         state
     };
 
+    #[cfg(target_os = "windows")]
+    install_windows_preview_gesture_handlers(app, &window);
     start_preview_interaction_tracking(app.clone(), window, state.clone());
 
     Ok(Some(state))
@@ -438,6 +470,184 @@ fn clear_preview_interaction(app: &AppHandle) {
             log::warn!("reset preview input capture failed: {error}");
         }
     }
+
+    #[cfg(target_os = "windows")]
+    clear_windows_preview_gesture_handlers();
+}
+
+#[cfg(target_os = "windows")]
+fn install_windows_preview_gesture_handlers(app: &AppHandle, window: &WebviewWindow) {
+    let Ok(raw_hwnd) = window.hwnd() else {
+        return;
+    };
+    let hwnd = HWND(raw_hwnd.0 as isize);
+
+    {
+        let mut guard = PREVIEW_GESTURE_APP
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard = Some(app.clone());
+    }
+
+    unsafe {
+        install_preview_gesture_hwnd(hwnd);
+        let _ = EnumChildWindows(hwnd, Some(install_preview_gesture_child), LPARAM(0));
+    }
+}
+
+#[cfg(target_os = "windows")]
+extern "system" fn install_preview_gesture_child(hwnd: HWND, _lparam: LPARAM) -> BOOL {
+    unsafe {
+        install_preview_gesture_hwnd(hwnd);
+    }
+    BOOL(1)
+}
+
+/// Route native Windows precision-touchpad pinch gestures through the preview
+/// while the pointer is inside the visible panel.
+#[cfg(target_os = "windows")]
+unsafe fn install_preview_gesture_hwnd(hwnd: HWND) {
+    {
+        let installed = PREVIEW_GESTURE_WINDOWS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if installed.contains(&hwnd.0) {
+            return;
+        }
+    }
+
+    if !configure_preview_gesture_hwnd(hwnd) {
+        return;
+    }
+
+    if !SetWindowSubclass(
+        hwnd,
+        Some(preview_gesture_subclass_proc),
+        preview_gesture_subclass_id(),
+        0,
+    )
+    .as_bool()
+    {
+        return;
+    }
+
+    PREVIEW_GESTURE_WINDOWS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(hwnd.0);
+    log::debug!("preview gesture enabled on hwnd=0x{:x}", hwnd.0);
+}
+
+#[cfg(target_os = "windows")]
+fn clear_windows_preview_gesture_handlers() {
+    let handles = {
+        let mut guard = PREVIEW_GESTURE_WINDOWS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        std::mem::take(&mut *guard)
+    };
+
+    PREVIEW_GESTURE_DISTANCE.store(0, Ordering::SeqCst);
+    PREVIEW_GESTURE_APP
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take();
+
+    for raw_hwnd in handles {
+        unsafe {
+            RemoveWindowSubclass(
+                HWND(raw_hwnd),
+                Some(preview_gesture_subclass_proc),
+                preview_gesture_subclass_id(),
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn preview_gesture_subclass_proc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _subclass_id: usize,
+    _ref_data: usize,
+) -> LRESULT {
+    if message == WM_GESTURENOTIFY {
+        let _ = configure_preview_gesture_hwnd(hwnd);
+        return DefSubclassProc(hwnd, message, wparam, lparam);
+    }
+
+    if message != WM_GESTURE {
+        return DefSubclassProc(hwnd, message, wparam, lparam);
+    }
+
+    let gesture_handle = HGESTUREINFO(lparam.0);
+    let mut info = GESTUREINFO {
+        cbSize: size_of::<GESTUREINFO>() as u32,
+        ..Default::default()
+    };
+    if GetGestureInfo(gesture_handle, &mut info).is_err() {
+        return DefSubclassProc(hwnd, message, wparam, lparam);
+    }
+
+    let Some(state) = preview_state_snapshot() else {
+        return DefSubclassProc(hwnd, message, wparam, lparam);
+    };
+    let inside =
+        cursor_inside_preview_panel(i32::from(info.ptsLocation.x), i32::from(info.ptsLocation.y));
+    if info.dwID != GID_ZOOM.0 || !inside || !is_preview_request_current(state.request_id) {
+        return DefSubclassProc(hwnd, message, wparam, lparam);
+    }
+
+    let distance = info.ullArguments & u64::from(u32::MAX);
+    let previous = PREVIEW_GESTURE_DISTANCE.swap(distance, Ordering::SeqCst);
+    let should_emit =
+        info.dwFlags & GF_BEGIN == 0 && info.dwFlags & GF_END == 0 && previous > 0 && distance > 0;
+    let factor = if should_emit {
+        (distance as f64 / previous as f64).clamp(0.8, 1.25)
+    } else {
+        1.0
+    };
+
+    if info.dwFlags & GF_END != 0 {
+        PREVIEW_GESTURE_DISTANCE.store(0, Ordering::SeqCst);
+    }
+
+    if should_emit && factor != 1.0 {
+        let app = PREVIEW_GESTURE_APP
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        if let Some(app) = app {
+            let payload = PreviewGesturePayload {
+                request_id: state.request_id,
+                session_id: state.session_id,
+                factor,
+            };
+            if let Err(error) = app.emit(PREVIEW_GESTURE_EVENT, payload) {
+                log::warn!("emit {PREVIEW_GESTURE_EVENT} failed: {error}");
+            }
+        }
+    }
+
+    let _ = CloseGestureInfoHandle(gesture_handle);
+    LRESULT(0)
+}
+
+#[cfg(target_os = "windows")]
+const fn preview_gesture_subclass_id() -> usize {
+    0xE0C0
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn configure_preview_gesture_hwnd(hwnd: HWND) -> bool {
+    let config = GESTURECONFIG {
+        dwID: GID_ZOOM,
+        dwWant: GC_ZOOM.0,
+        dwBlock: 0,
+    };
+    SetGestureConfig(hwnd, 0, &[config], size_of::<GESTURECONFIG>() as u32).is_ok()
 }
 
 fn start_preview_interaction_tracking(

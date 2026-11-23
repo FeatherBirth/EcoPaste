@@ -126,6 +126,28 @@ For left/right placement, the connector source is the clipboard-window outer
 edge at the item's vertical center, not the virtual card edge. This keeps the
 dot outside the card and independent of the card's horizontal list padding.
 
+The source rect sent by React now uses the full-width list row for `left` and
+`width`, while retaining the card rect's vertical center. Rust still maps that
+viewport rect into overlay coordinates, but connector geometry uses only the
+mapped row rect. Each endpoint dot is offset outward by its radius, so both
+sides are tangent to the visual borders and do not overlap either surface.
+
+## Text First Paint
+
+The textarea starts with `overflow: hidden` while the panel spring is still
+moving from its fallback size to the measured height. The unmeasured estimate
+includes a 10% safety factor. After the preview transition settles, overflow
+switches to `auto`; only genuinely overflowing text then shows a scrollbar.
+
+## Windows Precision Touchpad Gesture
+
+The preview WebView and its child HWND tree request `GID_ZOOM`. A window
+subclass consumes zoom gestures only while the gesture location is inside the
+current preview panel, then emits `preview://gesture` with a per-frame factor.
+React applies that factor to the existing whole-panel zoom state. Pointer events
+for two physical contacts remain a fallback, while `Ctrl + wheel` remains
+available for device/WebView2 paths that already translate pinch to wheel.
+
 No Rust clipboard contract is needed for zoom because it only affects preview presentation.
 
 ## Cross-Platform and Compatibility

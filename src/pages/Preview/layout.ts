@@ -21,6 +21,7 @@ import {
   PREVIEW_PANEL_MIN_HEIGHT,
   PREVIEW_PANEL_MIN_WIDTH,
   PREVIEW_PANEL_ZOOM_MAX_WIDTH,
+  PREVIEW_TEXT_HEIGHT_ESTIMATE_SCALE,
   PREVIEW_TEXT_ROW_HEIGHT,
   PREVIEW_TEXT_SOFT_WRAP_CHARS,
   PREVIEW_TEXT_VERTICAL_PADDING,
@@ -276,7 +277,10 @@ function resolveTextPanelSize(
   const maxPanelWidth = panelLimits.width;
   const maxPanelHeight = panelLimits.height;
   const contentHeight =
-    measuredContentHeight ?? estimateTextContentHeight(text);
+    measuredContentHeight ??
+    Math.ceil(
+      estimateTextContentHeight(text) * PREVIEW_TEXT_HEIGHT_ESTIMATE_SCALE,
+    );
 
   return {
     height: clamp(

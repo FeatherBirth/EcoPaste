@@ -1,6 +1,12 @@
 import { Empty } from "antd";
 import type { TFunction } from "i18next";
-import { type FC, useLayoutEffect, useRef, type WheelEvent } from "react";
+import {
+  type FC,
+  type PointerEvent,
+  useLayoutEffect,
+  useRef,
+  type WheelEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 import type {
@@ -23,6 +29,7 @@ export interface PreviewContentProps {
   onImageZoomChange?: (zoom: number) => void;
   onTextContentHeightChange?: (itemId: string, height: number) => void;
   payload: ClipboardPreviewPayload | null;
+  textOverflowReady?: boolean;
 }
 
 export interface PreviewHeaderProps {
@@ -42,10 +49,16 @@ interface FilesViewerProps extends ImageViewerProps {}
 
 interface TextViewerProps extends PayloadViewerProps {
   onContentHeightChange?: (itemId: string, height: number) => void;
+  overflowReady: boolean;
 }
 
 interface FilePreviewRowProps {
   file: ClipboardPreviewFileEntry;
+}
+
+interface PinchPoint {
+  x: number;
+  y: number;
 }
 
 const FILES_VIRTUOSO_COMPONENTS = {
@@ -89,6 +102,7 @@ export const PreviewContent: FC<PreviewContentProps> = (props) => {
     onImageZoomChange = noopZoomChange,
     onTextContentHeightChange,
     payload,
+    textOverflowReady = true,
   } = props;
   const { t } = useTranslation("preview");
 
@@ -127,6 +141,7 @@ export const PreviewContent: FC<PreviewContentProps> = (props) => {
   return (
     <TextViewer
       onContentHeightChange={onTextContentHeightChange}
+      overflowReady={textOverflowReady}
       payload={payload}
     />
   );
@@ -136,7 +151,7 @@ export const PreviewContent: FC<PreviewContentProps> = (props) => {
  * 文本预览：所有文本族内容使用单个只读 textarea，支持原生选择与精确测量溢出。
  */
 const TextViewer: FC<TextViewerProps> = (props) => {
-  const { onContentHeightChange, payload } = props;
+  const { onContentHeightChange, overflowReady, payload } = props;
   const { t } = useTranslation("preview");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const text = payload.text ?? "";
@@ -172,7 +187,13 @@ const TextViewer: FC<TextViewerProps> = (props) => {
 
   return (
     <textarea
-      className="block h-full min-h-0 w-full flex-1 select-text resize-none overflow-auto whitespace-pre-wrap border-0 bg-transparent p-4 font-mono text-xs leading-5.5 outline-none"
+      className={cn(
+        "block h-full min-h-0 w-full flex-1 select-text resize-none whitespace-pre-wrap border-0 bg-transparent p-4 font-mono text-xs leading-5.5 outline-none",
+        {
+          "overflow-auto": overflowReady,
+          "overflow-hidden": !overflowReady,
+        },
+      )}
       readOnly
       ref={textareaRef}
       spellCheck={false}
@@ -188,6 +209,8 @@ const TextViewer: FC<TextViewerProps> = (props) => {
 const ImageViewer: FC<ImageViewerProps> = (props) => {
   const { onZoomChange, payload, zoom } = props;
   const { t } = useTranslation("preview");
+  const pinchPointsRef = useRef(new Map<number, PinchPoint>());
+  const pinchDistanceRef = useRef<number | null>(null);
   const imageWidth = payload.imageWidth ?? void 0;
   const imageHeight = payload.imageHeight ?? void 0;
 
@@ -219,9 +242,49 @@ const ImageViewer: FC<ImageViewerProps> = (props) => {
     );
   };
 
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    pinchPointsRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    pinchDistanceRef.current = resolvePinchDistance(pinchPointsRef.current);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!pinchPointsRef.current.has(event.pointerId)) return;
+
+    pinchPointsRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    const nextDistance = resolvePinchDistance(pinchPointsRef.current);
+    const previousDistance = pinchDistanceRef.current;
+    pinchDistanceRef.current = nextDistance;
+    if (nextDistance === null || previousDistance === null) return;
+
+    event.preventDefault();
+    const factor = clamp(
+      nextDistance / previousDistance,
+      1 / PREVIEW_IMAGE_ZOOM_STEP,
+      PREVIEW_IMAGE_ZOOM_STEP,
+    );
+    onZoomChange(
+      clamp(zoom * factor, PREVIEW_IMAGE_ZOOM_MIN, PREVIEW_IMAGE_ZOOM_MAX),
+    );
+  };
+
+  const handlePointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    pinchPointsRef.current.delete(event.pointerId);
+    pinchDistanceRef.current = resolvePinchDistance(pinchPointsRef.current);
+  };
+
   return (
     <div
-      className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden p-4"
+      className="flex min-h-0 w-full flex-1 touch-none items-center justify-center overflow-hidden p-4"
+      onPointerCancel={handlePointerEnd}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
       onWheel={handleWheel}
     >
       <AssetImage
@@ -240,6 +303,15 @@ function noopZoomChange(_zoom: number) {}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function resolvePinchDistance(points: Map<number, PinchPoint>) {
+  if (points.size < 2) return null;
+
+  const [first, second] = points.values();
+  if (!first || !second) return null;
+
+  return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
 /**

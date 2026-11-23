@@ -402,10 +402,8 @@ export function useClipboardPreviewController(
   ) => {
     if (!clipboardWindowVisibleRef.current) return;
 
-    const element = itemElementMapRef.current.get(item.id);
-    const rect = element?.getBoundingClientRect();
-
-    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+    const anchor = resolvePreviewAnchor(item.id);
+    if (!anchor) return;
 
     const requestId = nextPreviewRequestId();
     commitPreviewSession({ itemId: item.id, requestId, trigger });
@@ -413,16 +411,7 @@ export function useClipboardPreviewController(
     try {
       if (!clipboardWindowVisibleRef.current) return;
 
-      const state = await showClipboardPreview(
-        item.id,
-        {
-          height: rect.height,
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-        },
-        requestId,
-      );
+      const state = await showClipboardPreview(item.id, anchor, requestId);
 
       if (requestId !== previewOpenRequestIdRef.current) return;
       if (!state || !clipboardWindowVisibleRef.current) {
@@ -585,6 +574,29 @@ export function useClipboardPreviewController(
       left: rect.left,
       top: rect.top,
       width: rect.width,
+    };
+  }
+
+  /**
+   * Use the full-width list row for horizontal connector bounds while keeping
+   * the card's vertical center. Both preview sides then share one DOM source.
+   */
+  function resolvePreviewAnchor(id: string): PreviewRectSnapshot | null {
+    const element = itemElementMapRef.current.get(id);
+    if (!element) return null;
+
+    const rect = element.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+    const rowRect = element
+      .closest<HTMLElement>("[data-clipboard-preview-row]")
+      ?.getBoundingClientRect();
+
+    return {
+      height: rect.height,
+      left: rowRect?.left ?? rect.left,
+      top: rect.top,
+      width: rowRect?.width ?? rect.width,
     };
   }
 

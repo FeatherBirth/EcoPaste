@@ -13,6 +13,9 @@
 9. Replace text virtual rows with a selectable text container, raise the default text panel height, and rely on real overflow for scrollbar visibility.
 10. Add image wheel zoom with pointer-relative scroll adjustment and reset-on-item-change.
 11. Run focused checks and Windows desktop validation.
+12. Re-anchor side connectors to the full-width preview row and offset dots by radius.
+13. Suppress text overflow during the opening spring and retain a 10% initial height estimate.
+14. Install Windows `GID_ZOOM` handling on the preview HWND tree and bridge it through `preview://gesture`.
 
 ## Risky Files
 
@@ -20,6 +23,8 @@
 - `src/pages/Clipboard/hooks/useClipboardPreviewController.ts`: preserve Space preview, scroll close, filter close, and keyboard retargeting.
 - `src/pages/Preview/index.tsx`: report final dynamic panel rect and avoid reporting while exit-only state is rendered.
 - `src/pages/Preview/components/PreviewContent.tsx`: textarea selection, wheel default prevention, and scroll containment.
+- `src/pages/Clipboard/hooks/useClipboardPreviewController.ts`: full-width row anchor collection.
+- `src-tauri/src/window/preview.rs`: Windows gesture subclass lifetime and event emission.
 - `src-tauri/src/window/windows.rs` and `window/macos.rs`: focus behavior must not regress clipboard-window focus or paste timing.
 
 ## Validation

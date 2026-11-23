@@ -97,3 +97,9 @@ Also reject the fast path when `ClipboardItem.size` indicates that the stored
 plain text is larger than `summary`; the card may be showing only the capped
 summary even if that summary currently fits. Do not skip HTML/RTF previews or
 Space-triggered previews.
+
+Horizontal preview anchors must come from the full-width
+`[data-clipboard-preview-row]` container while retaining the card rect's
+vertical center. Do not mix a card-width anchor with a separately queried native
+window width for connector placement; DPI and transparent-window padding can
+make the two disagree between left and right layouts.

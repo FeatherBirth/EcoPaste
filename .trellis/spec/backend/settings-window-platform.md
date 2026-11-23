@@ -274,6 +274,8 @@ window focus, and platform input routing.
   - `set_clipboard_preview_panel_rect(request_id, panel_rect) -> ()`
 - Event:
   `preview://interaction { requestId, sessionId, active }`
+- Windows gesture event:
+  `preview://gesture { requestId, sessionId, factor }`
 - Runtime rect: `{ left, top, width, height }` in overlay CSS pixels.
 - Text viewer: read-only `textarea`; image zoom range `0.25..=4.0`.
 
@@ -295,11 +297,20 @@ window focus, and platform input routing.
 - Text preview height follows real content and is capped by the clipboard-window
   height. The visible textarea reports its real `scrollHeight`
   back to layout; scrollbars must appear only when content actually overflows.
+- The first text estimate includes a small safety factor and the textarea hides
+  overflow until the panel spring settles. This prevents the scrollbar from
+  painting during the initial measurement and height transition.
 - Image preview zoom may expand beyond the default 480px panel dimensions up to
   the monitor margin-inset overlay. Apply one uniform scale to both axes and
   reset from the preview session id so reopening the same item starts fit-sized.
-- Left/right connector source anchors use the clipboard-window outer edge, not
-  the padded virtual card edge.
+- React sends the full-width list-row rect with the card's vertical center.
+  Rust maps that rect into overlay coordinates, and connector endpoints sit one
+  dot-radius outside the row and panel borders on either side.
+- On Windows, configure `GID_ZOOM` on the preview HWND tree, including
+  `WM_GESTURENOTIFY`, and consume zoom only while the gesture point is inside
+  the current panel. Precision-touchpad pinch therefore updates the same
+  whole-panel zoom state as wheel input; two-contact pointer pinch remains a
+  fallback.
 
 #### 4. Validation & Error Matrix
 
@@ -341,6 +352,8 @@ window focus, and platform input routing.
 - Windows manual validation must click and drag-select inside the text preview,
   then wheel over an image preview, while confirming both clipboard and preview
   windows remain visible for the interaction.
+- Windows touchpad validation must pinch inside an image preview and confirm the
+  panel and image scale together without browser page zoom.
 
 #### 7. Wrong vs Correct
 

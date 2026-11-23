@@ -1256,7 +1256,10 @@ const List: FC = () => {
     );
 
     return (
-      <div className={cn("px-3", { "pt-3": index !== 0 })}>
+      <div
+        className={cn("px-3", { "pt-3": index !== 0 })}
+        data-clipboard-preview-row
+      >
         <ClipboardCard
           availableActions={availableActions}
           hintKey={hintKey}

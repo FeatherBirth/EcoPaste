@@ -11,6 +11,7 @@ export const TAURI_EVENT = {
   CONTEXT_SUBMENU_SHOW: "context-submenu://show",
   KEYBOARD_NAV: "keyboard://nav",
   PREFERENCE_HIGHLIGHT_SETTING: "preference://highlight-setting",
+  PREVIEW_GESTURE: "preview://gesture",
   PREVIEW_INTERACTION: "preview://interaction",
   PREVIEW_UPDATED: "preview://updated",
   SETTINGS_UPDATED: "settings://updated",

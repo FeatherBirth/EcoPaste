@@ -2,6 +2,7 @@ import type {
   ClipboardPreviewPlacement,
   ClipboardPreviewRect,
 } from "@/commands";
+import { PREVIEW_CONNECTOR_DOT_RADIUS } from "./constants";
 
 type ConnectorSide = "left" | "right" | "top" | "bottom";
 
@@ -38,15 +39,9 @@ export function resolveConnector(
   sourceRect: ClipboardPreviewRect,
   targetRect: ClipboardPreviewRect,
   placement?: ClipboardPreviewPlacement,
-  clipboardWindowRect?: ClipboardPreviewRect | null,
 ): PreviewConnector {
-  if (placement && clipboardWindowRect) {
-    return resolvePlacedConnector(
-      sourceRect,
-      targetRect,
-      placement,
-      clipboardWindowRect,
-    );
+  if (placement) {
+    return resolvePlacedConnector(sourceRect, targetRect, placement);
   }
 
   const candidates = buildAnchorCandidates(sourceRect).flatMap((source) => {
@@ -85,14 +80,13 @@ export function resolveConnector(
 }
 
 /**
- * Anchor left/right connectors on the clipboard-window border instead of the
- * card border, so the dot never intrudes into the list item padding.
+ * Anchor side connectors on the list-row bounds and offset each dot by its
+ * radius, so the complete marker sits outside the list and preview borders.
  */
 function resolvePlacedConnector(
   sourceRect: ClipboardPreviewRect,
   targetRect: ClipboardPreviewRect,
   placement: ClipboardPreviewPlacement,
-  clipboardWindowRect: ClipboardPreviewRect,
 ): PreviewConnector {
   const sourceY = sourceRect.top + sourceRect.height / 2;
   const targetY = targetRect.top + targetRect.height / 2;
@@ -105,9 +99,12 @@ function resolvePlacedConnector(
 
   switch (placement) {
     case "left":
-      source = { x: clipboardWindowRect.left, y: sourceY };
+      source = {
+        x: sourceRect.left - PREVIEW_CONNECTOR_DOT_RADIUS,
+        y: sourceY,
+      };
       target = {
-        x: targetRect.left + targetRect.width,
+        x: targetRect.left + targetRect.width + PREVIEW_CONNECTOR_DOT_RADIUS,
         y: targetY,
       };
       sourceSide = "left";
@@ -115,22 +112,37 @@ function resolvePlacedConnector(
       break;
     case "right":
       source = {
-        x: clipboardWindowRect.left + clipboardWindowRect.width,
+        x: sourceRect.left + sourceRect.width + PREVIEW_CONNECTOR_DOT_RADIUS,
         y: sourceY,
       };
-      target = { x: targetRect.left, y: targetY };
+      target = {
+        x: targetRect.left - PREVIEW_CONNECTOR_DOT_RADIUS,
+        y: targetY,
+      };
       sourceSide = "right";
       targetSide = "left";
       break;
     case "bottom":
-      source = { x: sourceX, y: sourceRect.top + sourceRect.height };
-      target = { x: targetX, y: targetRect.top };
+      source = {
+        x: sourceX,
+        y: sourceRect.top + sourceRect.height + PREVIEW_CONNECTOR_DOT_RADIUS,
+      };
+      target = {
+        x: targetX,
+        y: targetRect.top - PREVIEW_CONNECTOR_DOT_RADIUS,
+      };
       sourceSide = "bottom";
       targetSide = "top";
       break;
     case "top":
-      source = { x: sourceX, y: sourceRect.top };
-      target = { x: targetX, y: targetRect.top + targetRect.height };
+      source = {
+        x: sourceX,
+        y: sourceRect.top - PREVIEW_CONNECTOR_DOT_RADIUS,
+      };
+      target = {
+        x: targetX,
+        y: targetRect.top + targetRect.height + PREVIEW_CONNECTOR_DOT_RADIUS,
+      };
       sourceSide = "top";
       targetSide = "bottom";
       break;

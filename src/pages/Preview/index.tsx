@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useSnapshot } from "valtio";
 import {
+  type ClipboardPreviewGesturePayload,
   type ClipboardPreviewState,
   getClipboardPreviewState,
   setClipboardPreviewPanelRect,
@@ -18,17 +19,20 @@ import { cacheKey } from "./cache";
 import { PreviewContent, PreviewHeader } from "./components/PreviewContent";
 import PreviewContentTransition from "./components/PreviewContentTransition";
 import {
+  PREVIEW_CONNECTOR_DOT_RADIUS,
   PREVIEW_CONNECTOR_VARIANTS,
+  PREVIEW_IMAGE_ZOOM_MAX,
+  PREVIEW_IMAGE_ZOOM_MIN,
   PREVIEW_PANEL_MAX_HEIGHT,
   PREVIEW_PANEL_MAX_WIDTH,
   PREVIEW_PANEL_TRANSITION,
   PREVIEW_PANEL_VARIANTS,
+  PREVIEW_TEXT_OVERFLOW_SETTLE_MS,
 } from "./constants";
 import { resolveConnector } from "./geometry";
 import { usePreviewPayload, usePreviewRenderState } from "./hooks";
 import {
   rectStyle,
-  resolveClipboardWindowOverlayRect,
   resolveDynamicPanelRect,
   resolveEffectivePanelSize,
   resolveMeasurePanelStyle,
@@ -80,6 +84,9 @@ const Preview: FC = () => {
     itemId: string | null;
     height: number;
   }>({ height: 0, itemId: null });
+  const [textOverflowReadyKey, setTextOverflowReadyKey] = useState<
+    number | null
+  >(null);
   const { clipboard } = useSnapshot(settingsState);
   const redactSecrets = clipboard.sensitive.redactSecrets;
   const renderState = usePreviewRenderState(previewState);
@@ -131,15 +138,11 @@ const Preview: FC = () => {
   const panelMeasureStyle = visibleState
     ? resolveMeasurePanelStyle(visibleState.layout)
     : void 0;
-  const clipboardWindowRect = visibleState
-    ? resolveClipboardWindowOverlayRect(visibleState)
-    : null;
   const connector = visibleState
     ? resolveConnector(
         visibleState.layout.sourceRect,
         panelRect,
         visibleState.layout.placement,
-        clipboardWindowRect,
       )
     : EMPTY_CONNECTOR;
   const panelLayoutReady =
@@ -169,11 +172,50 @@ const Preview: FC = () => {
     },
   );
 
+  useTauriListen<ClipboardPreviewGesturePayload>(
+    TAURI_EVENT.PREVIEW_GESTURE,
+    (event) => {
+      const gesture = event.payload;
+      if (gesture.sessionId !== visibleSessionId) return;
+      if (payload?.kind !== "image" && payload?.singleImagePreview !== true) {
+        return;
+      }
+
+      setImageZoomState((current) => {
+        const baseZoom =
+          current.sessionId === gesture.sessionId ? current.zoom : 1;
+        return {
+          sessionId: gesture.sessionId,
+          zoom: clampZoom(baseZoom * gesture.factor),
+        };
+      });
+    },
+  );
+
   useEffect(() => {
     if (!active || previewRequestId === null) return;
 
     void setClipboardPreviewPanelRect(previewRequestId, reportedPanelRect);
   }, [active, previewRequestId, reportedPanelRect]);
+
+  useEffect(() => {
+    setTextOverflowReadyKey(null);
+    if (
+      payload?.kind !== "text" ||
+      visibleItemId === null ||
+      textHeightState.itemId !== visibleItemId
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setTextOverflowReadyKey(visibleSessionId);
+    }, PREVIEW_TEXT_OVERFLOW_SETTLE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [payload?.kind, textHeightState.itemId, visibleItemId, visibleSessionId]);
 
   const handleBeforeDestroy = (event: { payload: BeforeDestroyPayload }) => {
     if (event.payload.label !== WINDOW_LABEL.PREVIEW) return;
@@ -238,14 +280,14 @@ const Preview: FC = () => {
           className="fill-ant-container stroke-ant-primary"
           cx={motionLayout.sourceDotX}
           cy={motionLayout.sourceDotY}
-          r="4"
+          r={PREVIEW_CONNECTOR_DOT_RADIUS}
           strokeWidth="2.5"
         />
         <motion.circle
           className="fill-ant-container stroke-ant-primary"
           cx={motionLayout.targetDotX}
           cy={motionLayout.targetDotY}
-          r="4"
+          r={PREVIEW_CONNECTOR_DOT_RADIUS}
           strokeWidth="2.5"
         />
       </motion.svg>
@@ -286,6 +328,11 @@ const Preview: FC = () => {
               onImageZoomChange={handleImageZoomChange}
               onTextContentHeightChange={handleTextContentHeightChange}
               payload={payload}
+              textOverflowReady={
+                payload?.kind === "text"
+                  ? textOverflowReadyKey === visibleSessionId
+                  : true
+              }
             />
           </div>
         </PreviewContentTransition>
@@ -306,6 +353,13 @@ function shouldRenderMeasuredContent(
   if (!payload) return true;
 
   return payload.kind === "image" || payload.singleImagePreview;
+}
+
+function clampZoom(value: number) {
+  return Math.min(
+    PREVIEW_IMAGE_ZOOM_MAX,
+    Math.max(PREVIEW_IMAGE_ZOOM_MIN, value),
+  );
 }
 
 export default Preview;

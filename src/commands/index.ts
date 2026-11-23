@@ -120,6 +120,12 @@ export interface ClipboardPreviewInteractionPayload {
   sessionId: number;
 }
 
+export interface ClipboardPreviewGesturePayload {
+  factor: number;
+  requestId: number;
+  sessionId: number;
+}
+
 export interface ClipboardPreviewFileEntry {
   path: string;
   name: string;
