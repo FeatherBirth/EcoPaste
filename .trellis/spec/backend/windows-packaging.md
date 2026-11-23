@@ -112,6 +112,9 @@ or the published PowerShell bootstrap installer.
 - Stable latest URLs are used; do not embed the release version in bootstrap
   download paths.
 - HTTPS is required. Plain HTTP is accepted only for loopback test mirrors.
+- The documented user entry point is the direct `irm <latest bootstrap> | iex`
+  command. The published script remains inspectable, but the README does not
+  require users to save and review it first.
 - The script downloads the package and checksum to a unique temp directory.
 - SHA-256 must match before `Start-Process` is called.
 - The installer runs with `/P /UPDATE /R`.
@@ -134,8 +137,8 @@ or the published PowerShell bootstrap installer.
 - Good: latest public script downloads `v1.5.1`, verifies SHA-256, updates in
   place, and starts one process.
 - Base: no existing install -> fresh machine-wide installation.
-- Bad: `Invoke-WebRequest ... | Invoke-Expression` executes unchecked remote
-  text without a saved inspectable file or package verification.
+- Bad: executing a bootstrap from a non-HTTPS remote source or executing the
+  downloaded package without verifying its release checksum.
 
 ### 6. Tests Required
 
@@ -152,13 +155,13 @@ or the published PowerShell bootstrap installer.
 Wrong:
 
 ```powershell
-irm https://github.com/.../install-ecopaste.ps1 | iex
+$script = "$env:TEMP\install-ecopaste.ps1"
+Invoke-WebRequest "https://github.com/.../releases/latest/download/install-ecopaste.ps1" -OutFile $script
+powershell -NoProfile -ExecutionPolicy Bypass -File $script
 ```
 
 Correct:
 
 ```powershell
-$script = "$env:TEMP\install-ecopaste.ps1"
-Invoke-WebRequest "https://github.com/.../releases/latest/download/install-ecopaste.ps1" -OutFile $script
-powershell -NoProfile -ExecutionPolicy Bypass -File $script
+irm https://github.com/.../releases/latest/download/install-ecopaste.ps1 | iex
 ```

@@ -52,17 +52,22 @@ Intel/Apple Silicon 的签名安装产物。
 
 ## Windows 安装
 
-Windows x64 用户可以通过 PowerShell 下载并运行最新版安装脚本：
+Windows x64 用户可以通过一条 PowerShell 命令安装最新版：
 
 ```powershell
-$script = "$env:TEMP\install-ecopaste.ps1"
-Invoke-WebRequest "https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1" -OutFile $script
-powershell -NoProfile -ExecutionPolicy Bypass -File $script
+irm https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1 | iex
 ```
 
-脚本会下载最新稳定版安装包、校验 SHA-256、直接覆盖现有机器级安装，不会单独运行卸载程序，并会保留用户数据、启动一次 EcoPaste。安装期间 Windows 会正常弹出 UAC 授权窗口。
+命令会下载并执行最新版安装脚本。脚本会校验安装包 SHA-256、直接覆盖现有机器级安装，不会单独运行卸载程序，并会保留用户数据、启动一次 EcoPaste。安装期间 Windows 会正常弹出 UAC 授权窗口。
 
-建议先下载并检查脚本后再执行，不要让 PowerShell 直接把远程内容传给 `Invoke-Expression`。
+## macOS 安装
+
+根据 Mac 芯片下载对应 DMG：
+
+- [Apple Silicon（M1/M2/M3/M4）](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-arm64.dmg)
+- [Intel](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-x64.dmg)
+
+打开 DMG，将 EcoPaste 拖入“应用程序”。如果 macOS 阻止首次启动，请打开“系统设置 → 隐私与安全性”并选择“仍要打开”，或在 Finder 中按住 Control 点击 EcoPaste 后选择“打开”。
 
 ## 参与贡献
 

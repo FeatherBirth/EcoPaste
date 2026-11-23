@@ -56,22 +56,27 @@ the custom proxy mode.
 
 ## Install on Windows
 
-Windows x64 users can download and run the latest release installer with
-PowerShell:
+Windows x64 users can install the latest release with one PowerShell command:
 
 ```powershell
-$script = "$env:TEMP\install-ecopaste.ps1"
-Invoke-WebRequest "https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1" -OutFile $script
-powershell -NoProfile -ExecutionPolicy Bypass -File $script
+irm https://github.com/FeatherBirth/EcoPaste/releases/latest/download/install-ecopaste.ps1 | iex
 ```
 
-The script downloads the latest stable package, verifies its SHA-256 checksum,
-upgrades the existing machine-wide installation without running a separate
-uninstaller, preserves user data, and launches EcoPaste once. Windows will show
-the normal UAC elevation prompt.
+The command downloads and runs the latest installer script. The script verifies
+the package SHA-256 checksum, upgrades the existing machine-wide installation
+without running a separate uninstaller, preserves user data, and launches
+EcoPaste once. Windows will show the normal UAC elevation prompt.
 
-Download the script and inspect it before execution. Avoid piping remote
-PowerShell directly into `Invoke-Expression`.
+## Install on macOS
+
+Download the DMG for your Mac:
+
+- [Apple Silicon (M1/M2/M3/M4)](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-arm64.dmg)
+- [Intel](https://github.com/FeatherBirth/EcoPaste/releases/latest/download/EcoPaste-macos-x64.dmg)
+
+Open the DMG and drag EcoPaste into `Applications`. If macOS blocks the first
+launch, open System Settings -> Privacy & Security and choose Open Anyway, or
+Control-click EcoPaste in Finder and choose Open.
 
 ## Contributing
 

@@ -9,6 +9,7 @@
 - Zoom the whole image preview panel with the mouse wheel, Ctrl + wheel, or precision-touchpad pinch while preserving the image aspect ratio and resetting on each preview session.
 - Add ordered multi-select for clipboard history. Ctrl/Cmd-click toggles an item, Shift-click selects a range, selected cards show their paste order, and cancellation compacts the remaining order.
 - Add batch paste in selection order, including an experimental mixed text/image/file mode that uses sequential paste only when the selection requires it.
+- Publish stable macOS Apple Silicon and Intel DMG download links alongside the signed updater artifacts.
 - Add a Windows-only screenshot clipboard repair setting. It is disabled by default and preserves the existing Office/Excel behavior of choosing image or text according to the target application.
 - Switch automatic updates to the current GitHub Releases repository and publish signed updater artifacts for Windows x64/ARM64 and macOS Intel/Apple Silicon.
 - Respect the Windows system HTTP proxy when checking and downloading updates.

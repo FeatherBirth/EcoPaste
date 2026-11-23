@@ -14,6 +14,7 @@ window placement, or OS-specific side effects.
 | [Database and Storage](./database-and-storage.md) | SQLite schema, repositories, FTS search, backups, data directory changes |
 | [Settings, Windowing, and Platform](./settings-window-platform.md) | Settings model, shortcuts, tray, autostart, window lifecycle, macOS/Windows code |
 | [Windows Packaging](./windows-packaging.md) | NSIS install mode/hooks, versioning, signed or unsigned package builds, in-place upgrades |
+| [macOS Packaging](./macos-packaging.md) | DMG aliases, dual-architecture release builds, updater artifacts, install guidance |
 
 ## Layer Map
 

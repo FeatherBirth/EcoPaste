@@ -291,6 +291,39 @@ jobs:
           $hash = (Get-FileHash "release-assets/EcoPaste_x64-setup.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  EcoPaste_x64-setup.exe" | Set-Content "release-assets/EcoPaste_x64-setup.exe.sha256" -Encoding ascii
 
+      - name: Prepare stable macOS installer assets
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target="${{ matrix.target }}"
+          case "${target}" in
+            aarch64-apple-darwin)
+              asset_name="EcoPaste-macos-arm64.dmg"
+              ;;
+            x86_64-apple-darwin)
+              asset_name="EcoPaste-macos-x64.dmg"
+              ;;
+            *)
+              echo "::error::Unexpected macOS target '${target}'."
+              exit 1
+              ;;
+          esac
+
+          dmg_paths=(src-tauri/target/"${target}"/release/bundle/dmg/*.dmg)
+          if [[ "${#dmg_paths[@]}" -ne 1 || ! -f "${dmg_paths[0]}" ]]; then
+            echo "::error::Expected exactly one macOS DMG for ${target}."
+            exit 1
+          fi
+
+          mkdir -p release-assets
+          cp "${dmg_paths[0]}" "release-assets/${asset_name}"
+          (
+            cd release-assets
+            shasum -a 256 "${asset_name}" > "${asset_name}.sha256"
+          )
+
       - name: Upload stable Windows installer assets
         if: matrix.target == 'x86_64-pc-windows-msvc'
         shell: pwsh
@@ -304,6 +337,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Uploading stable Windows release assets failed with exit code $LASTEXITCODE."
           }
+
+      - name: Upload stable macOS installer assets
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.release-metadata.outputs.tag_name }}"
+          gh release upload "${tag}" release-assets/* --clobber
 
   publish-release:
     name: Publish GitHub Release
@@ -364,6 +407,11 @@ jobs:
           win_arm64="EcoPaste_${version}_arm64-setup.exe"
           mac_x64="EcoPaste_${version}_x64.app.tar.gz"
           mac_arm64="EcoPaste_${version}_aarch64.app.tar.gz"
+
+          asset_url "EcoPaste-macos-x64.dmg" > /dev/null
+          asset_url "EcoPaste-macos-arm64.dmg" > /dev/null
+          asset_url "EcoPaste-macos-x64.dmg.sha256" > /dev/null
+          asset_url "EcoPaste-macos-arm64.dmg.sha256" > /dev/null
 
           jq -n \
             --arg version "${version}" \
