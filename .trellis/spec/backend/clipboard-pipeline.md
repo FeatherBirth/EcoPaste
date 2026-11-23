@@ -111,11 +111,13 @@ writeback behavior.
 ## Ordered Batch Paste
 
 `paste_clipboard_items(query, selectedIndexes, mixed)` resolves complete rows
-from the same filtered/pinned-first display order as the virtual list. Text-only
+from the same filtered/pinned-first display order as the virtual list, then
+restores the frontend's click order before building any payload. Text-only
 selections join OS plain-text representations with `\n`, write one payload, and
-simulate one paste. With the experimental mixed setting enabled, contiguous text
-rows remain merged while image/file rows are pasted as ordered segments; stop on
-the first failure and return `completed`/`total` plus the failed display index.
+simulate one paste. With the experimental mixed setting enabled, consecutive
+text selections in click order remain merged while image/file rows are pasted as
+ordered segments; stop on the first failure and return `completed`/`total` plus
+the failed selection-position index.
 
 The action list exposes `select` only for rows eligible for the batch: all text
 rows, mixed-mode images, and mixed-mode file rows whose every stored path still

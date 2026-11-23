@@ -20,6 +20,7 @@ interface ClipboardCardProps {
   isSelected?: boolean;
   isFocused?: boolean;
   isSelectionDisabled?: boolean;
+  selectionOrder?: number;
   /**
    * 快捷键提示字符（"1"–"9" / "0"），存在时在 app 图标上叠加 KeyHint；
    * 按下修饰键（macOS ⌘ / Windows Ctrl）+ 该数字键触发快速粘贴。
@@ -62,6 +63,7 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
     isSelected,
     isFocused,
     isSelectionDisabled = false,
+    selectionOrder,
     hintKey,
     onQuickPaste,
     isLinkActive,
@@ -163,7 +165,15 @@ const ClipboardCard: FC<ClipboardCardProps> = (props) => {
     >
       <div className="flex items-center justify-between text-ant-secondary text-xs">
         <div className="flex min-w-0 items-center gap-1 overflow-hidden">
-          {hintKey ? (
+          {selectionOrder !== void 0 ? (
+            <span
+              aria-label={t("header.selectionOrder", { order: selectionOrder })}
+              className="inline-flex h-4 min-w-4 items-center justify-center rounded-1 bg-ant-primary px-1 font-bold font-mono text-ant-light-solid text-xs"
+              role="img"
+            >
+              {selectionOrder}
+            </span>
+          ) : hintKey ? (
             <KeyHint hintKey={hintKey} onKeyPress={onQuickPaste}>
               {sourceAppIcon}
             </KeyHint>

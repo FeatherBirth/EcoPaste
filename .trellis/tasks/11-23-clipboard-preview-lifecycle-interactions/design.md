@@ -131,6 +131,8 @@ The source rect sent by React now uses the full-width list row for `left` and
 viewport rect into overlay coordinates, but connector geometry uses only the
 mapped row rect. Each endpoint dot is offset outward by its radius, so both
 sides are tangent to the visual borders and do not overlap either surface.
+The right list source point receives an additional 18px inward compensation for
+the overlay scrollbar and border; the confirmed left anchor remains unchanged.
 
 ## Text First Paint
 

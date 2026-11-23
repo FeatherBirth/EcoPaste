@@ -2,7 +2,10 @@ import type {
   ClipboardPreviewPlacement,
   ClipboardPreviewRect,
 } from "@/commands";
-import { PREVIEW_CONNECTOR_DOT_RADIUS } from "./constants";
+import {
+  PREVIEW_CONNECTOR_DOT_RADIUS,
+  PREVIEW_RIGHT_CONNECTOR_INSET,
+} from "./constants";
 
 type ConnectorSide = "left" | "right" | "top" | "bottom";
 
@@ -112,7 +115,11 @@ function resolvePlacedConnector(
       break;
     case "right":
       source = {
-        x: sourceRect.left + sourceRect.width + PREVIEW_CONNECTOR_DOT_RADIUS,
+        x:
+          sourceRect.left +
+          sourceRect.width +
+          PREVIEW_CONNECTOR_DOT_RADIUS -
+          PREVIEW_RIGHT_CONNECTOR_INSET,
         y: sourceY,
       };
       target = {

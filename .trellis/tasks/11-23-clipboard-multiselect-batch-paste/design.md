@@ -7,7 +7,7 @@ React owns transient selection intent:
 - focus/active index;
 - explicit `selectionMode` from the header control;
 - selection anchor index;
-- selected index set;
+- ordered selected index set;
 - modifier-click interpretation;
 - selected-state rendering.
 
@@ -28,7 +28,7 @@ Replace the single multi-selection decision with:
 ```ts
 selectedId: string | null;        // current focus item
 selectionAnchorIndex: number | null;
-selectedIndexes: Set<number>;     // all explicitly selected rows
+selectedIndexes: Set<number>;     // insertion order is paste order
 ```
 
 `selectedId` remains the keyboard focus and single-item action target. `selectedIndexes` expresses multi-selection:
@@ -38,8 +38,8 @@ selectedIndexes: Set<number>;     // all explicitly selected rows
 - in selection mode, normal click adds the row and does not paste;
 - a repeated normal click on a selected row toggles it off;
 - Ctrl/Cmd+click: toggle target index, set focus and anchor to target;
-- Shift+click: replace selection with anchor..target when no Ctrl/Cmd;
-- Ctrl/Cmd+Shift+click: add anchor..target to the existing set;
+- Shift+click: append not-yet-selected anchor..target rows to the existing set
+  without reordering previous choices;
 - modifier clicks never run single-click paste/copy;
 - no visible selection anchor uses the current focused/visible item as fallback.
 
@@ -65,6 +65,9 @@ The native context menu and optional configured quick action both expose
 ## Rendering
 
 Keep the existing `bg-ant-blue-1` and `border-ant-primary` selected treatment.
+Each selected card replaces its source-app icon with a compact order badge
+derived from the index's one-based position in `selectedIndexes`; removing an
+item naturally compacts all later numbers.
 
 `selectedId` remains a stronger focus state:
 
@@ -93,14 +96,17 @@ interface BatchPasteResult {
 }
 ```
 
-`query` is the same filter/sort object used by `useClipboardItems`, with `limit`/`offset` ignored by the batch path. The frontend sends ordered unique selected indices.
+`query` is the same filter/sort object used by `useClipboardItems`, with
+`limit`/`offset` ignored by the batch path. The frontend sends unique indices in
+click order.
 
 Repository support:
 
 - compress selected indices into contiguous ranges;
 - for each range, query complete `SELECT_ITEM` rows with the same filter and sort using the range's offset/limit;
 - verify the returned row's zero-based position corresponds to each requested index;
-- concatenate in display order.
+- map each resolved row back to its display index and emit rows in the original
+  requested selection order.
 
 This avoids requiring all virtualized rows to be loaded in React.
 
@@ -123,10 +129,10 @@ This path is used regardless of the experimental mixed setting.
 
 If the selection contains image/files and `experimentalMixedBatchPaste = true`:
 
-1. Segment ordered items into maximal contiguous text runs and individual non-text items.
+1. Segment click-ordered items into maximal consecutive text runs and individual non-text items.
 2. Text runs use the single-payload join algorithm.
 3. Image/files use the existing `write_to_clipboard` semantics, including `pastePlain` and `pasteFilesAsPath`.
-4. Write and simulate paste once per segment in display order.
+4. Write and simulate paste once per segment in selection order.
 5. Wait a fixed short interval (initial recommendation: 180ms) between segments for the foreground app to consume the paste.
 6. Stop immediately on a write/paste/update failure and return `completed`, `total`, and the failed segment's lead item.
 7. Do not roll back already pasted external-app content.

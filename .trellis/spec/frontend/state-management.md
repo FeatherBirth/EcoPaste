@@ -57,12 +57,15 @@ small UI mirror and Rust remains the source of truth.
 ## Clipboard Multi-Selection
 
 The virtual list owns `selectedIndexes`, the anchor, and the focused item.
+`selectedIndexes` insertion order is the paste order and the number displayed in
+each selected card.
 `clipboardSelectionState` mirrors only whether explicit multi-select mode is
 active and the selected count for the header control.
 
 - The header list-check button enters/leaves multi-select mode.
 - In that mode, ordinary clicks add rows; Cmd/Ctrl-click toggles a row; Shift
-  replaces the selection with an inclusive range.
+  appends not-yet-selected rows from an inclusive range without reordering the
+  existing selection.
 - Repeating an ordinary click on a selected row removes it.
 - Text rows are always batch-selectable. Image/file rows require the experimental
   mixed setting, and files rows whose stored paths no longer all exist are
@@ -73,8 +76,9 @@ active and the selected count for the header control.
   configured single-click paste/copy action.
 - Clear index selection whenever the query changes, the list reloads, a row is
   deleted, or the clipboard window hides/opens.
-- Enter/double-click resolves indices in Rust against the current filter and
-  ordering; React must not join cached summaries as the batch payload.
+- Enter/double-click resolves indices in Rust against the current filter, then
+  restores the frontend click order; React must not join cached summaries as the
+  batch payload.
 
 ## Derived State
 

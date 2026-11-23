@@ -516,9 +516,9 @@ impl BatchPasteSegment {
     }
 }
 
-/// Paste the selected list indices in display order. Pure text selections use
+/// Paste the selected list indices in click order. Pure text selections use
 /// one clipboard payload and one simulated paste; the experimental mixed mode
-/// segments adjacent text runs and image/file records.
+/// segments consecutive text selections and image/file records.
 #[tauri::command]
 pub async fn paste_clipboard_items(
     app: AppHandle,
@@ -529,9 +529,13 @@ pub async fn paste_clipboard_items(
     selected_indexes: Vec<usize>,
     mixed: bool,
 ) -> Result<BatchPasteResult> {
-    let mut indexes = selected_indexes;
-    indexes.sort_unstable();
-    indexes.dedup();
+    let mut indexes = Vec::with_capacity(selected_indexes.len());
+    for index in selected_indexes {
+        if indexes.contains(&index) {
+            continue;
+        }
+        indexes.push(index);
+    }
     if indexes.is_empty() {
         return Err(AppError::Clipboard(
             "no clipboard items selected".to_owned(),
@@ -2123,6 +2127,31 @@ mod tests {
         missing_file.kind = ClipboardKind::Files;
         missing_file.content = r"D:\EcoPaste\missing-file-for-batch-test".to_owned();
         assert!(!compute_available_actions(&missing_file, true).contains(&ClipboardAction::Select));
+    }
+
+    #[test]
+    fn mixed_batch_segments_follow_click_order() {
+        let mut first_text = text_item(None, false);
+        first_text.id = "text-1".to_owned();
+        first_text.content = "first".to_owned();
+        let mut image = image_item();
+        image.id = "image-2".to_owned();
+        let mut second_text = text_item(None, false);
+        second_text.id = "text-3".to_owned();
+        second_text.content = "second".to_owned();
+        let mut third_text = text_item(None, false);
+        third_text.id = "text-4".to_owned();
+        third_text.content = "third".to_owned();
+
+        let segments = build_batch_paste_segments(vec![first_text, image, second_text, third_text]);
+
+        assert_eq!(segments.len(), 3);
+        assert_eq!(segments[0].start_index(), 0);
+        assert_eq!(segments[0].len(), 1);
+        assert_eq!(segments[1].start_index(), 1);
+        assert_eq!(segments[1].lead_item_id(), "image-2");
+        assert_eq!(segments[2].start_index(), 2);
+        assert_eq!(segments[2].len(), 2);
     }
 
     #[test]

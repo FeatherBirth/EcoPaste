@@ -112,6 +112,11 @@ const List: FC = () => {
   // 剪贴板窗口启动即隐藏，初值取 false；首个 `window://visibility` show 事件会翻正。
   // dormant（隐藏）期间到达的剪贴板更新一律延后，不 reload 隐藏窗口。
   const clipboardWindowVisibleRef = useRef(false);
+  const selectionOrderByIndex = new Map<number, number>();
+
+  for (const [orderIndex, itemIndex] of [...selectedIndexes].entries()) {
+    selectionOrderByIndex.set(itemIndex, orderIndex + 1);
+  }
 
   const snapshot = useSnapshot(clipboardViewState);
   const selection = useSnapshot(clipboardSelectionState);
@@ -532,7 +537,7 @@ const List: FC = () => {
       });
 
       setSelectedIndexes((current) => {
-        return commandKey ? unionSelection(current, range) : range;
+        return appendSelectionRange(current, range);
       });
       if (selectionAnchorIndex === null) setSelectionAnchorIndex(anchor);
       return true;
@@ -566,22 +571,23 @@ const List: FC = () => {
   }
 
   /**
-   * Paste all selected rows in display order and clear the transient selection.
+   * Paste all selected rows in click order and clear the transient selection.
    */
   async function handleBatchPaste(indexesOverride?: number[]) {
     const candidates = indexesOverride ?? [...selectedIndexes];
     if (candidates.length === 0) return;
 
-    const indexes = candidates
-      .filter((index) => {
-        const item = getItem(index);
-        return (
-          item !== null && isClipboardItemBatchSelectable(item, mixedBatchPaste)
-        );
-      })
-      .sort((left, right) => {
-        return left - right;
-      });
+    const indexes = [
+      ...new Set(
+        candidates.filter((index) => {
+          const item = getItem(index);
+          return (
+            item !== null &&
+            isClipboardItemBatchSelectable(item, mixedBatchPaste)
+          );
+        }),
+      ),
+    ];
     if (indexes.length === 0) return;
 
     closePreview("batchPaste");
@@ -1294,6 +1300,9 @@ const List: FC = () => {
           quickActionLabels={quickActionLabels}
           quickActions={visibleQuickActions}
           rootRef={registerItemElement(item.id)}
+          selectionOrder={
+            selection.active ? selectionOrderByIndex.get(index) : void 0
+          }
           showOriginalOnHover={showOriginalPreview}
         />
       </div>
@@ -1395,9 +1404,9 @@ function createSelectionRange(
 }
 
 /**
- * Merge a Shift range into an existing Ctrl+Shift selection.
+ * Append unselected rows from a Shift range without reordering prior choices.
  */
-function unionSelection(left: Set<number>, right: Set<number>) {
+function appendSelectionRange(left: Set<number>, right: Set<number>) {
   const merged = new Set(left);
   for (const index of right) {
     merged.add(index);

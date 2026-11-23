@@ -10,6 +10,13 @@ export const PREVIEW_PANEL_HEADER_HEIGHT = 48;
 export const PREVIEW_PANEL_IMAGE_PADDING_X = 32;
 export const PREVIEW_PANEL_IMAGE_PADDING_Y = 32;
 export const PREVIEW_CONNECTOR_DOT_RADIUS = 4;
+/**
+ * The right list edge includes an overlay scrollbar and border that are not
+ * part of the visible card surface. Keep the already-correct left anchor
+ * unchanged and compensate only the right source point.
+ */
+export const PREVIEW_RIGHT_CONNECTOR_INSET =
+  PREVIEW_CONNECTOR_DOT_RADIUS * 4 + 2;
 export const PREVIEW_EMPTY_CONTENT_HEIGHT = 96;
 export const PREVIEW_TEXT_ROW_HEIGHT = 22;
 export const PREVIEW_TEXT_VERTICAL_PADDING = 32;

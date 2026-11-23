@@ -2,6 +2,7 @@ use anyhow::Context;
 use blake3::Hasher;
 use chrono::Utc;
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use std::collections::HashMap;
 
 use crate::core::Result;
 use crate::db::models::{
@@ -173,7 +174,7 @@ pub async fn query_items_page(
 }
 
 /// Resolve selected display indices to complete rows using the same filter and
-/// ordering as the virtual list. Complete rows are required for batch writeback.
+/// ordering as the virtual list, then restore the caller-provided selection order.
 pub async fn query_items_at_indices(
     pool: &SqlitePool,
     q: &ClipboardItemQuery,
@@ -181,7 +182,7 @@ pub async fn query_items_at_indices(
 ) -> Result<Vec<ClipboardItem>> {
     let keyword = KeywordFilter::from_keyword(q.keyword.as_deref());
     let ranges = compress_index_ranges(indices);
-    let mut items = Vec::with_capacity(indices.len());
+    let mut items_by_index = HashMap::with_capacity(indices.len());
 
     for range in ranges {
         let rows = fetch_full_items_range(pool, q, &keyword, range.start, range.len).await?;
@@ -194,7 +195,23 @@ pub async fn query_items_at_indices(
             )
             .into());
         }
-        items.extend(rows);
+
+        for (offset, item) in rows.into_iter().enumerate() {
+            items_by_index.insert(range.start + offset, item);
+        }
+    }
+
+    let mut seen = Vec::with_capacity(indices.len());
+    let mut items = Vec::with_capacity(indices.len());
+    for index in indices {
+        if seen.contains(index) {
+            continue;
+        }
+        seen.push(*index);
+        let item = items_by_index.remove(index).ok_or_else(|| {
+            anyhow::anyhow!("clipboard selection is stale; index {index} was not returned")
+        })?;
+        items.push(item);
     }
 
     Ok(items)
@@ -720,6 +737,32 @@ mod tests {
                 IndexRange { start: 8, len: 2 },
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn query_items_at_indices_preserves_selection_order() {
+        let pool = memory_pool().await;
+        for n in 0..4i64 {
+            let mut item = sample_item(&format!("item-{n}"));
+            item.created_at = DateTime::from_timestamp(1_700_000_000 + n, 0).unwrap();
+            insert_item(&pool, &item).await.unwrap();
+        }
+
+        let query = ClipboardItemQuery {
+            sort: ClipboardItemSort::CreatedAt,
+            ..Default::default()
+        };
+        let display_items = query_items(&pool, &query).await.unwrap();
+        let selected_indexes = [3, 1, 3, 0, 2];
+        let items = query_items_at_indices(&pool, &query, &selected_indexes)
+            .await
+            .unwrap();
+        let expected = [3, 1, 0, 2]
+            .iter()
+            .map(|index| display_items[*index].id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids(&items), expected);
     }
 
     #[tokio::test]

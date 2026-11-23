@@ -4,12 +4,14 @@
 
 1. Add the header selection-mode control and reducer/helpers for normal,
    Ctrl/Cmd, Shift, and Ctrl/Cmd+Shift clicks.
+   Shift always appends new rows to the existing ordered selection.
 2. Refactor `List` selection state from `selectedId` only to focus + anchor + selected index set.
 3. Update card highlighting and keyboard navigation to preserve focused vs selected styling.
 4. Clear selection on query changes, deletes, window reset, and unmount.
 5. Defer single-click action only when a multi-selection already contains the clicked focus item.
 6. Route Enter, double-click, and Ctrl/Cmd+C through multi-selection branch when relevant.
 7. Add repository range querying for full rows at selected indices.
+   Restore the requested selection order after range lookup.
 8. Add `paste_clipboard_items` Rust command and structured result.
 9. Implement text-only single-payload batch path.
 10. Add experimental mixed setting across Rust, TypeScript, preference schema, visual icon map, and locales.
@@ -17,6 +19,8 @@
 12. Add command constants/wrappers and localized partial-failure feedback.
 13. Add Rust unit tests for range compression/query ordering and batch text construction.
 14. Run frontend and Rust checks, then Windows desktop interaction tests.
+15. Render one-based selection order badges in the source-app icon slot and
+    verify renumbering after deselection.
 
 ## Risky Files
 
@@ -47,9 +51,12 @@ cargo test
 Manual Windows:
 
 1. Ctrl-click several non-contiguous text items; verify no paste on modified click.
-2. Shift-click above/below the anchor repeatedly; verify range replacement.
-3. Ctrl+Shift-click a second range; verify additive behavior.
-4. Press Enter and double-click a selected item; verify one joined paste in visible list order.
+2. Shift-click above/below the anchor repeatedly; verify existing order stays
+   unchanged and new range rows append in list order.
+3. Ctrl-click and ordinary-click selected rows; verify removals compact all
+   remaining visible order badges.
+4. Press Enter and double-click a selected item; verify one joined paste follows
+   badge order rather than current list order.
 5. Repeat with `singleClickPaste`; verify the deferred first click does not fire when a double-click completes.
 6. Enable experimental mixed paste and verify text/image/text/files ordering and stop-on-failure behavior.
 7. Disable mixed paste and verify mixed selection cannot paste implicitly as text.

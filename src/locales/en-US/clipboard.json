@@ -55,11 +55,12 @@
     "exitMultiSelect": "Exit multi-select",
     "logoAlt": "EcoPaste logo",
     "moreActions": "More actions",
-    "multiSelect": "Multi-select: click to add, Cmd/Ctrl-click to remove, Shift for a range, Enter to paste",
+    "multiSelect": "Multi-select: click or Shift to append in order, Cmd/Ctrl-click to remove, Enter to paste by number",
     "openPreference": "Preferences",
     "pin": "Pin window",
     "searchPlaceholder": "Search clipboard...",
     "selectedCount": "{{count}} selected",
+    "selectionOrder": "Paste order {{order}}",
     "unpin": "Unpin"
   },
   "note": {
