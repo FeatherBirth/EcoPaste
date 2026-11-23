@@ -797,6 +797,8 @@ fn map_legacy_row_to_item(
                 width,
                 height,
                 plain_text: None,
+                repair_candidate: false,
+                source_sequence: None,
             })
         }
         _ => {

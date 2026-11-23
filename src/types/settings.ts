@@ -96,6 +96,8 @@ export interface Content {
   copyThenHideWindow: boolean;
   pastePlain: boolean;
   pasteFilesAsPath: boolean;
+  experimentalMixedBatchPaste: boolean;
+  repairPureImageClipboardFormat: boolean;
   showOriginalPreview: boolean;
   deleteConfirm: boolean;
   deleteFavoriteItems: boolean;

@@ -1,7 +1,6 @@
 import { Empty } from "antd";
 import type { TFunction } from "i18next";
-import type { FC } from "react";
-import { useState, type WheelEvent } from "react";
+import type { FC, WheelEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 import type {
@@ -13,8 +12,15 @@ import VirtuosoScroller, {
   type VirtuosoScrollerChildrenProps,
 } from "@/components/VirtuosoScroller";
 import { cn } from "@/utils/cn";
+import {
+  PREVIEW_IMAGE_ZOOM_MAX,
+  PREVIEW_IMAGE_ZOOM_MIN,
+  PREVIEW_IMAGE_ZOOM_STEP,
+} from "../constants";
 
 export interface PreviewContentProps {
+  imageZoom?: number;
+  onImageZoomChange?: (zoom: number) => void;
   payload: ClipboardPreviewPayload | null;
 }
 
@@ -26,13 +32,16 @@ interface PayloadViewerProps {
   payload: ClipboardPreviewPayload;
 }
 
+interface ImageViewerProps extends PayloadViewerProps {
+  onZoomChange: (zoom: number) => void;
+  zoom: number;
+}
+
+interface FilesViewerProps extends ImageViewerProps {}
+
 interface FilePreviewRowProps {
   file: ClipboardPreviewFileEntry;
 }
-
-const IMAGE_ZOOM_MIN = 0.25;
-const IMAGE_ZOOM_MAX = 4;
-const IMAGE_ZOOM_STEP = 1.15;
 
 const FILES_VIRTUOSO_COMPONENTS = {
   Footer: PreviewFilesPadding,
@@ -70,7 +79,7 @@ export const PreviewHeader: FC<PreviewHeaderProps> = (props) => {
  * 按 payload kind 分发到基础 viewer。
  */
 export const PreviewContent: FC<PreviewContentProps> = (props) => {
-  const { payload } = props;
+  const { imageZoom = 1, onImageZoomChange = noopZoomChange, payload } = props;
   const { t } = useTranslation("preview");
 
   if (!payload) {
@@ -85,10 +94,25 @@ export const PreviewContent: FC<PreviewContentProps> = (props) => {
   }
 
   if (payload.kind === "image") {
-    return <ImageViewer key={payload.id} payload={payload} />;
+    return (
+      <ImageViewer
+        key={payload.id}
+        onZoomChange={onImageZoomChange}
+        payload={payload}
+        zoom={imageZoom}
+      />
+    );
   }
 
-  if (payload.kind === "files") return <FilesViewer payload={payload} />;
+  if (payload.kind === "files") {
+    return (
+      <FilesViewer
+        onZoomChange={onImageZoomChange}
+        payload={payload}
+        zoom={imageZoom}
+      />
+    );
+  }
 
   return <TextViewer payload={payload} />;
 };
@@ -126,10 +150,9 @@ const TextViewer: FC<PayloadViewerProps> = (props) => {
 /**
  * 图片预览：使用原图路径渲染，缺失时降级为空状态。
  */
-const ImageViewer: FC<PayloadViewerProps> = (props) => {
-  const { payload } = props;
+const ImageViewer: FC<ImageViewerProps> = (props) => {
+  const { onZoomChange, payload, zoom } = props;
   const { t } = useTranslation("preview");
-  const [zoom, setZoom] = useState(1);
   const imageWidth = payload.imageWidth ?? void 0;
   const imageHeight = payload.imageHeight ?? void 0;
 
@@ -147,31 +170,31 @@ const ImageViewer: FC<PayloadViewerProps> = (props) => {
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
 
-    const factor = event.deltaY < 0 ? IMAGE_ZOOM_STEP : 1 / IMAGE_ZOOM_STEP;
-    setZoom((current) => {
-      return clamp(current * factor, IMAGE_ZOOM_MIN, IMAGE_ZOOM_MAX);
-    });
+    const factor =
+      event.deltaY < 0 ? PREVIEW_IMAGE_ZOOM_STEP : 1 / PREVIEW_IMAGE_ZOOM_STEP;
+    onZoomChange(
+      clamp(zoom * factor, PREVIEW_IMAGE_ZOOM_MIN, PREVIEW_IMAGE_ZOOM_MAX),
+    );
   };
 
   return (
     <div
-      className="min-h-24 overflow-auto overscroll-contain"
+      className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden p-4"
       onWheel={handleWheel}
     >
-      <div className="flex min-h-full min-w-full items-center justify-center p-4">
-        <AssetImage
-          alt={t("image.alt")}
-          className="block h-auto max-h-100 max-w-full object-contain"
-          draggable={false}
-          height={imageHeight}
-          src={payload.imagePath}
-          style={{ transform: `scale(${zoom})` }}
-          width={imageWidth}
-        />
-      </div>
+      <AssetImage
+        alt={t("image.alt")}
+        className="block size-full object-contain"
+        draggable={false}
+        height={imageHeight}
+        src={payload.imagePath}
+        width={imageWidth}
+      />
     </div>
   );
 };
+
+function noopZoomChange(_zoom: number) {}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -180,12 +203,19 @@ function clamp(value: number, min: number, max: number) {
 /**
  * 文件预览：虚拟列表展示路径、文件名、存在状态与基础大小。
  */
-const FilesViewer: FC<PayloadViewerProps> = (props) => {
-  const { payload } = props;
+const FilesViewer: FC<FilesViewerProps> = (props) => {
+  const { onZoomChange, payload, zoom } = props;
   const { t } = useTranslation("preview");
 
   if (payload.singleImagePreview && payload.imagePath && payload.imageExists) {
-    return <ImageViewer key={payload.id} payload={payload} />;
+    return (
+      <ImageViewer
+        key={payload.id}
+        onZoomChange={onZoomChange}
+        payload={payload}
+        zoom={zoom}
+      />
+    );
   }
 
   if (payload.files.length === 0) {

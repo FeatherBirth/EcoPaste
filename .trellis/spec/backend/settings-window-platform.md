@@ -302,6 +302,9 @@ window focus, and platform input routing.
 - Invalid panel rect -> `preview panel rect is invalid`.
 - Pointer outside actual panel -> window remains click-through.
 - Pointer inside actual panel -> input enabled, interaction event `active=true`.
+- A click inside the reported panel must also be excluded from the Windows
+  outside-click auto-hide hook; otherwise the hook hides the clipboard window
+  before the preview WebView can receive the click.
 - Pointer leaves -> input disabled, interaction event `active=false`, normal hide
   buffer resumes.
 - Cursor polling/focus failure -> preview lifecycle remains functional and only
@@ -329,6 +332,9 @@ window focus, and platform input routing.
 - `pnpm tsc` covers request-id and interaction event payloads.
 - Manual Windows validates rapid card switching, panel entry/leave, click-through,
   text selection/copy, image wheel zoom, and default text height.
+- Windows manual validation must click and drag-select inside the text preview,
+  then wheel over an image preview, while confirming both clipboard and preview
+  windows remain visible for the interaction.
 
 #### 7. Wrong vs Correct
 

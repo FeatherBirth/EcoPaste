@@ -23,6 +23,7 @@ use super::apps_registry::AppsRegistry;
 use super::guard::WritebackGuard;
 use super::ingest::build_item_with_settings;
 use super::read::ClipboardReader;
+use super::repair::repair_after_persist;
 use super::sound;
 use super::source::{self, FrontmostApp};
 use super::storage::ImageStore;
@@ -307,9 +308,13 @@ impl ClipboardHandler for ClipboardChangeHandler {
             &CLIPBOARD_READ_RETRY_DELAYS,
             cfg!(target_os = "windows"),
             || {
-                self.reader.read_with_capture_for_source(
+                self.reader.read_with_capture_for_source_and_repair(
                     &settings.clipboard.capture,
                     source.as_ref().map(|app| app.id.as_str()),
+                    settings
+                        .clipboard
+                        .content
+                        .repair_pure_image_clipboard_format,
                 )
             },
         ) {
@@ -335,6 +340,12 @@ impl ClipboardHandler for ClipboardChangeHandler {
                 return;
             }
         };
+        let (repair_candidate, source_sequence) = match &payload {
+            super::ClipboardPayload::Image(image) => {
+                (image.repair_candidate, image.source_sequence)
+            }
+            _ => (false, None),
+        };
 
         // 自身写回触发的变更：跳过入库，避免回环。
         if self.guard.should_skip(&item.content_hash) {
@@ -349,10 +360,30 @@ impl ClipboardHandler for ClipboardChangeHandler {
 
         // 入库与 emit 交给异步运行时；只移动 Send 数据，不碰平台句柄。
         let app = self.app.clone();
+        let store = self.store.clone();
+        let guard = self.guard.clone();
+        let repair_enabled = settings
+            .clipboard
+            .content
+            .repair_pure_image_clipboard_format;
         tauri::async_runtime::spawn(async move {
             let pool = app.state::<crate::db::DatabaseState>().pool().await;
-            if let Err(err) = persist_and_notify(&app, &pool, &item, source_app.as_ref()).await {
-                log::error!("clipboard watcher: persist failed: {err}");
+            match persist_and_notify(&app, &pool, &item, source_app.as_ref()).await {
+                Ok(_) => {
+                    if let Err(err) = repair_after_persist(
+                        repair_enabled,
+                        &store,
+                        &guard,
+                        &item,
+                        repair_candidate,
+                        source_sequence,
+                    ) {
+                        log::warn!("clipboard watcher: image format repair failed: {err}");
+                    }
+                }
+                Err(err) => {
+                    log::error!("clipboard watcher: persist failed: {err}");
+                }
             }
         });
     }

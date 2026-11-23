@@ -156,7 +156,13 @@ export function useClipboardPreviewController(
 
   const handleWindowBlur = () => {
     if (previewInteractionActiveRef.current) return;
-    if (!previewSessionRef.current) return;
+    const session = previewSessionRef.current;
+    if (!session) return;
+
+    if (session.trigger === "hover") {
+      scheduleHoverHide("windowBlur");
+      return;
+    }
 
     closePreview("windowBlur");
   };

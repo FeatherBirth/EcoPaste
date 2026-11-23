@@ -52,11 +52,14 @@
   },
   "header": {
     "clearRecords": "Clear records",
+    "exitMultiSelect": "Exit multi-select",
     "logoAlt": "EcoPaste logo",
     "moreActions": "More actions",
+    "multiSelect": "Multi-select: click to add, Cmd/Ctrl-click to remove, Shift for a range, Enter to paste",
     "openPreference": "Preferences",
     "pin": "Pin window",
     "searchPlaceholder": "Search clipboard...",
+    "selectedCount": "{{count}} selected",
     "unpin": "Unpin"
   },
   "note": {

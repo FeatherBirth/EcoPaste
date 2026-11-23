@@ -282,6 +282,26 @@ pub fn get_clipboard_preview_state() -> Result<Option<ClipboardPreviewState>> {
     Ok(preview_state_snapshot())
 }
 
+/// Return whether a physical screen point is inside the current preview panel.
+/// The Windows outside-click hook uses this before hiding the clipboard window.
+pub(crate) fn cursor_inside_preview_panel(cursor_x: i32, cursor_y: i32) -> bool {
+    let Some(state) = preview_state_snapshot() else {
+        return false;
+    };
+    let guard = PREVIEW_INTERACTION.lock().unwrap_or_else(|poisoned| {
+        log::error!("preview interaction mutex poisoned on hit test, recovering");
+        poisoned.into_inner()
+    });
+    if guard.request_id != state.request_id || guard.session_id != state.session_id {
+        return false;
+    }
+    let Some(panel_rect) = guard.panel_rect else {
+        return false;
+    };
+
+    preview_panel_contains_physical(&state, panel_rect, cursor_x as f64, cursor_y as f64)
+}
+
 /// 更新当前预览面板的可见矩形，用于只在实际面板范围开启鼠标输入。
 pub fn set_clipboard_preview_panel_rect(request_id: u64, panel_rect: PreviewRect) -> Result<()> {
     validate_panel_rect(&panel_rect)?;

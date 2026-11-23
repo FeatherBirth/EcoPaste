@@ -337,6 +337,10 @@ pub struct Content {
     pub paste_plain: bool,
     /// 粘贴文件记录时，默认写入路径文本而不是文件本身。
     pub paste_files_as_path: bool,
+    /// 实验性：允许文本与图片/文件混合记录按顺序逐段粘贴。
+    pub experimental_mixed_batch_paste: bool,
+    /// Windows 兼容性：捕获 PNG-only 纯图片后补齐标准位图格式。
+    pub repair_pure_image_clipboard_format: bool,
     /// 鼠标悬停时显示原始内容预览（HTML/RTF 渲染前的原文）。
     pub show_original_preview: bool,
     /// 删除普通条目前是否需要二次确认；收藏 / 置顶条目由各自确认开关单独控制。
@@ -371,6 +375,8 @@ impl Default for Content {
             copy_then_hide_window: false,
             paste_plain: false,
             paste_files_as_path: false,
+            experimental_mixed_batch_paste: false,
+            repair_pure_image_clipboard_format: false,
             show_original_preview: true,
             delete_confirm: true,
             delete_favorite_items: false,

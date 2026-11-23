@@ -117,6 +117,10 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
 }
 
 fn cursor_outside_clipboard_window(app: &AppHandle, cursor: POINT) -> bool {
+    if crate::window::preview::cursor_inside_preview_panel(cursor.x, cursor.y) {
+        return false;
+    }
+
     let Some(window) = app.get_webview_window(CLIPBOARD_WINDOW_LABEL) else {
         return false;
     };

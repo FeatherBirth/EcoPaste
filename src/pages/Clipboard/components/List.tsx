@@ -16,6 +16,7 @@ import {
   listClipboardGroups,
   openClipboardItemLink,
   pasteClipboardItem,
+  pasteClipboardItems,
   revealClipboardItem,
   saveClipboardImageToFile,
   toggleClipboardItemFavorite,
@@ -38,6 +39,11 @@ import { WINDOW_LABEL } from "@/constants/windows";
 import { useClipboardItems } from "@/hooks/useClipboardItems";
 import { useKeyboardEvent } from "@/hooks/useKeyboardEvent";
 import { useTauriListen } from "@/hooks/useTauriListen";
+import {
+  clipboardSelectionState,
+  setClipboardSelectionCount,
+  setClipboardSelectionMode,
+} from "@/stores/clipboardSelection";
 import { clipboardStatsState } from "@/stores/clipboardStats";
 import { clipboardViewState } from "@/stores/clipboardView";
 import { settingsState } from "@/stores/settings";
@@ -50,6 +56,7 @@ import type {
 } from "@/types/clipboard";
 import type { ItemAction } from "@/types/settings";
 import { cn } from "@/utils/cn";
+import { getMessageApi } from "@/utils/feedback";
 import { isMac } from "@/utils/is";
 import type { WindowVisibilityPayload } from "../hooks/previewController";
 import {
@@ -83,6 +90,12 @@ interface ClipboardMenuActionPayload {
 const List: FC = () => {
   const { t } = useTranslation("clipboard");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [selectionAnchorIndex, setSelectionAnchorIndex] = useState<
+    number | null
+  >(null);
   const [firstVisibleIndex, setFirstVisibleIndex] = useState(0);
   const [isModifierPressed, setIsModifierPressed] = useState(false);
   const [customGroups, setCustomGroups] = useState<ClipboardGroupRecord[]>([]);
@@ -100,6 +113,7 @@ const List: FC = () => {
   const clipboardWindowVisibleRef = useRef(false);
 
   const snapshot = useSnapshot(clipboardViewState);
+  const selection = useSnapshot(clipboardSelectionState);
   const settings = useSnapshot(settingsState);
   const { category, keyword, groupId, range } = snapshot;
   const autoPaste = settings.clipboard.content.autoPaste;
@@ -116,6 +130,13 @@ const List: FC = () => {
   const showOriginalPreview = settings.clipboard.content.showOriginalPreview;
   const quickActionLabels = buildItemActionLabels(t);
   const currentGroupName = getCurrentGroupName(customGroups, groupId);
+  const clipboardQuery = {
+    favorite: range === "favorite" ? true : void 0,
+    groupId: groupId ?? void 0,
+    keyword,
+    kind: category ?? void 0,
+    sort,
+  };
 
   const {
     findItemById,
@@ -129,13 +150,7 @@ const List: FC = () => {
     reloadCurrentRange,
     removeItemById,
     total,
-  } = useClipboardItems({
-    favorite: range === "favorite" ? true : void 0,
-    groupId: groupId ?? void 0,
-    keyword,
-    kind: category ?? void 0,
-    sort,
-  });
+  } = useClipboardItems(clipboardQuery);
   const topItemCount = countLeadingPinnedItems(getItem);
   const {
     closeHoverPreviewForScroll,
@@ -160,9 +175,23 @@ const List: FC = () => {
     if (loadedInitial) clipboardStatsState.total = total;
   }, [loadedInitial, total]);
 
+  useEffect(() => {
+    setClipboardSelectionCount(selectedIndexes.size);
+  }, [selectedIndexes]);
+
+  useEffect(() => {
+    if (selection.active) return;
+
+    setSelectedIndexes((current) => {
+      return current.size === 0 ? current : new Set();
+    });
+    setSelectionAnchorIndex(null);
+  }, [selection.active]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: snapshot 作触发器，不需在回调内读取
   useEffect(() => {
     setSelectedId(null);
+    clearMultiSelection();
     if (keywordRef.current !== keyword) keywordRef.current = keyword;
     deferredReloadRef.current = false;
     closePreview("filterChange");
@@ -219,6 +248,7 @@ const List: FC = () => {
     if (payload.cleanup !== void 0) {
       closePreview("cleanup");
       setSelectedId(null);
+      clearMultiSelection();
       deferredReloadRef.current = false;
       if (clipboardStatsState.total !== null) {
         clipboardStatsState.total = Math.max(
@@ -233,6 +263,7 @@ const List: FC = () => {
     if (payload.imported) {
       closePreview("backupImport");
       setSelectedId(null);
+      clearMultiSelection();
       requestReloadAtTop();
       return;
     }
@@ -285,7 +316,12 @@ const List: FC = () => {
     if (label !== WINDOW_LABEL.CLIPBOARD) return;
 
     clipboardWindowVisibleRef.current = visible;
-    if (!visible) return;
+    if (!visible) {
+      clearMultiSelection();
+      return;
+    }
+
+    clearMultiSelection();
 
     const {
       favoriteScope,
@@ -426,6 +462,104 @@ const List: FC = () => {
   }
 
   /**
+   * Clear every transient multi-selection entry and leave selection mode.
+   */
+  function clearMultiSelection() {
+    setSelectedIndexes((current) => {
+      return current.size === 0 ? current : new Set();
+    });
+    setSelectionAnchorIndex(null);
+    setClipboardSelectionMode(false);
+  }
+
+  /**
+   * Apply Windows Explorer-style click semantics for explicit or modifier-led
+   * multi-selection. Returning true means the normal single-click action must
+   * not run.
+   */
+  function handleSelectionMouseDown(
+    event: ReactMouseEvent<HTMLDivElement>,
+    item: ClipboardItem,
+    index: number,
+  ) {
+    const commandKey = isMac ? event.metaKey : event.ctrlKey;
+    const wantsSelection = selection.active || commandKey || event.shiftKey;
+
+    if (!wantsSelection) return false;
+
+    setClipboardSelectionMode(true);
+    setSelectedId(item.id);
+
+    if (event.shiftKey) {
+      const anchor =
+        selectionAnchorIndex ??
+        getItemIndexById(selectedId ?? "") ??
+        firstVisibleIndex;
+      const range = createSelectionRange(anchor, index);
+
+      setSelectedIndexes((current) => {
+        return commandKey ? unionSelection(current, range) : range;
+      });
+      if (selectionAnchorIndex === null) setSelectionAnchorIndex(anchor);
+      return true;
+    }
+
+    if (commandKey) {
+      setSelectedIndexes((current) => {
+        const next = new Set(current);
+        if (next.has(index)) {
+          next.delete(index);
+        } else {
+          next.add(index);
+        }
+        return next;
+      });
+      setSelectionAnchorIndex(index);
+      return true;
+    }
+
+    setSelectedIndexes((current) => {
+      const next = new Set(current);
+      next.add(index);
+      return next;
+    });
+    if (selectionAnchorIndex === null) setSelectionAnchorIndex(index);
+    return true;
+  }
+
+  /**
+   * Paste all selected rows in display order and clear the transient selection.
+   */
+  async function handleBatchPaste() {
+    if (selectedIndexes.size === 0) return;
+
+    const indexes = [...selectedIndexes].sort((left, right) => {
+      return left - right;
+    });
+
+    closePreview("batchPaste");
+
+    try {
+      const result = await pasteClipboardItems(
+        clipboardQuery,
+        indexes,
+        settings.clipboard.content.experimentalMixedBatchPaste,
+      );
+      if (result.failedIndex !== null) {
+        getMessageApi().error(
+          t("commands:messages.batchPastePartial", {
+            completed: result.completed,
+            total: result.total,
+          }),
+        );
+      }
+      clearMultiSelection();
+    } catch {
+      // The command wrapper owns error logging and user feedback.
+    }
+  }
+
+  /**
    * 注册虚拟列表项对应的 DOM 节点，预览打开时用它采集 anchor rect。
    */
   const registerItemElement = (id: string) => {
@@ -458,6 +592,7 @@ const List: FC = () => {
 
     if (!deleted) return;
 
+    clearMultiSelection();
     setSelectedId(
       getSelectedIdAfterDelete(
         getItem,
@@ -603,6 +738,12 @@ const List: FC = () => {
 
     if (event.key === "Escape") {
       event.preventDefault();
+
+      if (selection.active || selectedIndexes.size > 0) {
+        clearMultiSelection();
+        return;
+      }
+
       closeTopEscapeLayer();
 
       return;
@@ -612,6 +753,11 @@ const List: FC = () => {
 
     if (event.key === "Enter") {
       event.preventDefault();
+
+      if (selection.active) {
+        if (selectedIndexes.size > 0) void handleBatchPaste();
+        return;
+      }
 
       const activeItem = getActiveItem();
 
@@ -639,6 +785,7 @@ const List: FC = () => {
       if (!activeItem) return;
 
       handleShortcutDelete(activeItem.id);
+      clearMultiSelection();
 
       return;
     }
@@ -765,6 +912,8 @@ const List: FC = () => {
    * 自动刷新请求只在顶部执行；离开顶部时保留 pending，等待回顶后消费。
    */
   function requestReloadAtTop() {
+    clearMultiSelection();
+
     if (!isAtTopRef.current) {
       deferredReloadRef.current = true;
       return;
@@ -971,6 +1120,11 @@ const List: FC = () => {
         return;
       }
 
+      if (handleSelectionMouseDown(event, item, index)) {
+        event.preventDefault();
+        return;
+      }
+
       setSelectedId(item.id);
 
       if (autoPaste === "singleClickPaste") {
@@ -992,6 +1146,11 @@ const List: FC = () => {
     };
 
     const handleDoubleClick = () => {
+      if (selection.active && selectedIndexes.size > 0) {
+        void handleBatchPaste();
+        return;
+      }
+
       if (autoPaste === "doubleClickPaste") {
         closePreview("doubleClickPaste");
         pasteClipboardItem(item.id, false);
@@ -1020,11 +1179,18 @@ const List: FC = () => {
         <ClipboardCard
           availableActions={availableActions}
           hintKey={hintKey}
-          isLinkActive={isModifierPressed}
-          isSelected={
+          isFocused={
             selectedId === null
               ? index === firstVisibleIndex
               : item.id === selectedId
+          }
+          isLinkActive={isModifierPressed}
+          isSelected={
+            selectedIndexes.size > 0
+              ? selectedIndexes.has(index)
+              : selectedId === null
+                ? index === firstVisibleIndex
+                : item.id === selectedId
           }
           item={item}
           onAuxClick={handleAuxClick}
@@ -1118,6 +1284,33 @@ const List: FC = () => {
     void hideWindow(WINDOW_LABEL.CLIPBOARD);
   }
 };
+
+/**
+ * Build the inclusive display-index range used by Shift-click.
+ */
+function createSelectionRange(anchor: number, target: number) {
+  const start = Math.min(anchor, target);
+  const end = Math.max(anchor, target);
+  const range = new Set<number>();
+
+  for (let index = start; index <= end; index += 1) {
+    range.add(index);
+  }
+
+  return range;
+}
+
+/**
+ * Merge a Shift range into an existing Ctrl+Shift selection.
+ */
+function unionSelection(left: Set<number>, right: Set<number>) {
+  const merged = new Set(left);
+  for (const index of right) {
+    merged.add(index);
+  }
+
+  return merged;
+}
 
 /**
  * 生成空列表文案，按搜索词、范围、分类和自定义分组组合出具体提示。

@@ -172,6 +172,34 @@ pub async fn query_items_page(
     Ok((items, total))
 }
 
+/// Resolve selected display indices to complete rows using the same filter and
+/// ordering as the virtual list. Complete rows are required for batch writeback.
+pub async fn query_items_at_indices(
+    pool: &SqlitePool,
+    q: &ClipboardItemQuery,
+    indices: &[usize],
+) -> Result<Vec<ClipboardItem>> {
+    let keyword = KeywordFilter::from_keyword(q.keyword.as_deref());
+    let ranges = compress_index_ranges(indices);
+    let mut items = Vec::with_capacity(indices.len());
+
+    for range in ranges {
+        let rows = fetch_full_items_range(pool, q, &keyword, range.start, range.len).await?;
+        if rows.len() != range.len {
+            return Err(anyhow::anyhow!(
+                "clipboard selection is stale; expected {} rows at index {}, found {}",
+                range.len,
+                range.start,
+                rows.len()
+            )
+            .into());
+        }
+        items.extend(rows);
+    }
+
+    Ok(items)
+}
+
 /// 按 `id` 查找单条记录，不存在时返回 `None`。
 pub async fn find_item_by_id(pool: &SqlitePool, id: &str) -> Result<Option<ClipboardItem>> {
     let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(SELECT_ITEM);
@@ -480,18 +508,7 @@ async fn fetch_items(
     qb.push(" WHERE 1 = 1");
     push_filter_clauses(&mut qb, q, &keyword);
 
-    qb.push(" ORDER BY clipboard_items.is_pinned DESC, ");
-    match q.sort {
-        ClipboardItemSort::CreatedAt => {
-            qb.push("clipboard_items.created_at DESC");
-        }
-        ClipboardItemSort::UpdatedAt => {
-            qb.push("clipboard_items.updated_at DESC, clipboard_items.created_at DESC");
-        }
-        ClipboardItemSort::UseCount => {
-            qb.push("clipboard_items.use_count DESC, clipboard_items.created_at DESC");
-        }
-    }
+    push_order_clause(&mut qb, q.sort);
 
     qb.push(" LIMIT ").push_bind(q.limit);
     qb.push(" OFFSET ").push_bind(q.offset);
@@ -502,6 +519,76 @@ async fn fetch_items(
         .await
         .context("failed to query clipboard items")?;
     Ok(items)
+}
+
+/// Fetch one contiguous range with the complete content columns.
+async fn fetch_full_items_range(
+    pool: &SqlitePool,
+    q: &ClipboardItemQuery,
+    keyword: &KeywordFilter,
+    start: usize,
+    len: usize,
+) -> Result<Vec<ClipboardItem>> {
+    let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(SELECT_ITEM);
+    qb.push(" WHERE 1 = 1");
+    push_filter_clauses(&mut qb, q, keyword);
+    push_order_clause(&mut qb, q.sort);
+    qb.push(" LIMIT ")
+        .push_bind(len as i64)
+        .push(" OFFSET ")
+        .push_bind(start as i64);
+
+    Ok(qb
+        .build_query_as::<ClipboardItem>()
+        .fetch_all(pool)
+        .await
+        .context("failed to query selected clipboard items")?)
+}
+
+/// Sort and collapse selected display indices into contiguous ranges.
+fn compress_index_ranges(indices: &[usize]) -> Vec<IndexRange> {
+    let mut sorted = indices.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+
+    let mut ranges = Vec::<IndexRange>::new();
+    for index in sorted {
+        match ranges.last_mut() {
+            Some(range) if range.start + range.len == index => {
+                range.len += 1;
+            }
+            _ => {
+                ranges.push(IndexRange {
+                    start: index,
+                    len: 1,
+                });
+            }
+        }
+    }
+
+    ranges
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IndexRange {
+    start: usize,
+    len: usize,
+}
+
+/// Append the list's pinned-first stable order used by every indexed query.
+fn push_order_clause(qb: &mut QueryBuilder<Sqlite>, sort: ClipboardItemSort) {
+    qb.push(" ORDER BY clipboard_items.is_pinned DESC, ");
+    match sort {
+        ClipboardItemSort::CreatedAt => {
+            qb.push("clipboard_items.created_at DESC");
+        }
+        ClipboardItemSort::UpdatedAt => {
+            qb.push("clipboard_items.updated_at DESC, clipboard_items.created_at DESC");
+        }
+        ClipboardItemSort::UseCount => {
+            qb.push("clipboard_items.use_count DESC, clipboard_items.created_at DESC");
+        }
+    }
 }
 
 /// 统计满足同样过滤条件的总条数（不参与排序 / 分页），与 [`fetch_items`] 共用 [`push_filter_clauses`]。
@@ -621,6 +708,18 @@ mod tests {
 
     fn ids(items: &[ClipboardItem]) -> Vec<&str> {
         items.iter().map(|item| item.id.as_str()).collect()
+    }
+
+    #[test]
+    fn selected_indices_are_deduplicated_and_compressed_into_ranges() {
+        assert_eq!(
+            compress_index_ranges(&[5, 1, 2, 2, 9, 3, 8]),
+            vec![
+                IndexRange { start: 1, len: 3 },
+                IndexRange { start: 5, len: 1 },
+                IndexRange { start: 8, len: 2 },
+            ]
+        );
     }
 
     #[tokio::test]

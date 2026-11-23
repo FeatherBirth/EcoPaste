@@ -2,7 +2,8 @@
 
 ## Ordered Checklist
 
-1. Add selection reducer/helpers for normal, Ctrl/Cmd, Shift, and Ctrl/Cmd+Shift clicks.
+1. Add the header selection-mode control and reducer/helpers for normal,
+   Ctrl/Cmd, Shift, and Ctrl/Cmd+Shift clicks.
 2. Refactor `List` selection state from `selectedId` only to focus + anchor + selected index set.
 3. Update card highlighting and keyboard navigation to preserve focused vs selected styling.
 4. Clear selection on query changes, deletes, window reset, and unmount.

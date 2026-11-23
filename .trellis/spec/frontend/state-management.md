@@ -54,6 +54,22 @@ Use command hooks or local component state for command results:
 Promote data to a store only when multiple distant components need the same
 small UI mirror and Rust remains the source of truth.
 
+## Clipboard Multi-Selection
+
+The virtual list owns `selectedIndexes`, the anchor, and the focused item.
+`clipboardSelectionState` mirrors only whether explicit multi-select mode is
+active and the selected count for the header control.
+
+- The header list-check button enters/leaves multi-select mode.
+- In that mode, ordinary clicks add rows; Cmd/Ctrl-click toggles a row; Shift
+  replaces the selection with an inclusive range.
+- Modifier clicks outside explicit mode enter mode instead of running the
+  configured single-click paste/copy action.
+- Clear index selection whenever the query changes, the list reloads, a row is
+  deleted, or the clipboard window hides/opens.
+- Enter/double-click resolves indices in Rust against the current filter and
+  ordering; React must not join cached summaries as the batch payload.
+
 ## Derived State
 
 Prefer deriving display state from snapshots during render. Use `useEffect` only

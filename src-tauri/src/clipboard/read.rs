@@ -30,15 +30,16 @@ impl ClipboardReader {
     /// 同一次复制可能同时存在文件、图片、HTML、RTF、纯文本表示；这里只返回第一个启用且可读取的类型。
     #[cfg(test)]
     pub fn read_with_capture(&self, capture: &Capture) -> Result<Option<ClipboardPayload>> {
-        self.read_with_capture_for_source(capture, None)
+        self.read_with_capture_for_source_and_repair(capture, None, false)
     }
 
-    /// Read with a source-application hint so Office/WPS image records can keep
-    /// the plain-text representation as an alternate writeback format.
-    pub fn read_with_capture_for_source(
+    /// Capture the clipboard while optionally recording Windows PNG-only repair
+    /// metadata. When repair is disabled, no extra format inspection occurs.
+    pub fn read_with_capture_for_source_and_repair(
         &self,
         capture: &Capture,
         source_app_id: Option<&str>,
+        repair_enabled: bool,
     ) -> Result<Option<ClipboardPayload>> {
         let mut text_payload: Option<Option<TextPayload>> = None;
         let prefer_office_text = source_app_id.is_some_and(is_office_clipboard_source);
@@ -64,7 +65,7 @@ impl ClipboardReader {
                 }
                 CaptureKind::Image => {
                     if self.ctx.has(ContentFormat::Image) {
-                        if let Some(mut image) = self.read_image()? {
+                        if let Some(mut image) = self.read_image(repair_enabled)? {
                             image.plain_text = office_plain_text(
                                 prefer_office_text,
                                 capture,
@@ -146,7 +147,13 @@ impl ClipboardReader {
     ///
     /// 慢路径回退：源是 TIFF（macOS 截图/多数 App）/ DIB（Windows）等非 PNG 时，
     /// 交给 [`clipboard_rs`] 解码再编码为 PNG（存储格式恒为 PNG，这次转码无法避免）。
-    fn read_image(&self) -> Result<Option<ImagePayload>> {
+    fn read_image(&self, repair_enabled: bool) -> Result<Option<ImagePayload>> {
+        let (repair_candidate, source_sequence) = if repair_enabled {
+            super::repair::image_repair_metadata()
+        } else {
+            (false, None)
+        };
+
         if let Ok(bytes) = self.ctx.get_buffer(PNG_FORMAT) {
             if let Some((width, height)) = png_dimensions(&bytes) {
                 return Ok(Some(ImagePayload {
@@ -154,6 +161,8 @@ impl ClipboardReader {
                     width,
                     height,
                     plain_text: None,
+                    repair_candidate,
+                    source_sequence,
                 }));
             }
             // 拿到了 PNG 格式字节但解析不出尺寸（异常/截断）：落到下方回退，由库重新解码。
@@ -175,6 +184,8 @@ impl ClipboardReader {
             width,
             height,
             plain_text: None,
+            repair_candidate,
+            source_sequence,
         }))
     }
 }

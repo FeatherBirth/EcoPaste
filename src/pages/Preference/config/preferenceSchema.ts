@@ -305,6 +305,49 @@ export const preferenceTabs: PreferenceTab[] = [
               return settings.clipboard.content.pasteFilesAsPath;
             },
           },
+          {
+            control: { type: "switch" },
+            id: "paste.mixedBatch",
+            keywords: [
+              "batch",
+              "multi select",
+              "mixed",
+              "image",
+              "file",
+              "experimental",
+            ],
+            path: ["clipboard", "content", "experimentalMixedBatchPaste"],
+            status: "experimental",
+            value: (settings) => {
+              return settings.clipboard.content.experimentalMixedBatchPaste;
+            },
+          },
+          ...(isWin
+            ? [
+                {
+                  control: { type: "switch" as const },
+                  id: "paste.repairImageClipboard",
+                  keywords: [
+                    "repair",
+                    "screenshot",
+                    "paste",
+                    "image",
+                    "clipboard",
+                    "png",
+                    "bitmap",
+                  ],
+                  path: [
+                    "clipboard",
+                    "content",
+                    "repairPureImageClipboardFormat",
+                  ],
+                  value: (settings: Settings) => {
+                    return settings.clipboard.content
+                      .repairPureImageClipboardFormat;
+                  },
+                },
+              ]
+            : []),
         ],
       },
       {

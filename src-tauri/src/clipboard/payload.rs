@@ -36,4 +36,8 @@ pub struct ImagePayload {
     ///
     /// 图片仍是记录与预览的主表示；该文本只用于搜索和显式纯文本写回。
     pub plain_text: Option<String>,
+    /// True when Windows exposed only a PNG image flavor and no native bitmap formats.
+    pub repair_candidate: bool,
+    /// Clipboard sequence observed while reading; guards delayed repair writes.
+    pub source_sequence: Option<u32>,
 }

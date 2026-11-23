@@ -12,12 +12,14 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::clipboard::{
     add_app_from_path, build_item_with_settings, delete_unreferenced_apps, detect_frontmost,
-    materialize_source, persist_and_notify, refresh_running_apps, sanitize_css_color, AppIconStore,
-    AppsRegistry, ClipboardReader, FileIconStore, ImageStore, WritebackGuard,
+    materialize_source, persist_and_notify, refresh_running_apps, sanitize_css_color,
+    write_text_payload, AppIconStore, AppsRegistry, ClipboardReader, FileIconStore, ImageStore,
+    WritebackGuard,
 };
 use crate::core::{AppError, Result};
 use crate::db::items::{
     clear_items, find_item_by_id, find_item_for_list_by_id, increment_item_use_count,
+    query_items_at_indices,
 };
 use crate::db::models::{
     ClipboardAction, ClipboardApp, ClipboardGroup, ClipboardItem, ClipboardItemPage,
@@ -88,9 +90,13 @@ pub async fn read_clipboard(
         let source = detect_frontmost();
         let reader = ClipboardReader::new()?;
         let settings = app.state::<SettingsStore>().snapshot();
-        let payload = reader.read_with_capture_for_source(
+        let payload = reader.read_with_capture_for_source_and_repair(
             &settings.clipboard.capture,
             source.as_ref().map(|app| app.id.as_str()),
+            settings
+                .clipboard
+                .content
+                .repair_pure_image_clipboard_format,
         )?;
         let item = match payload {
             Some(payload) => build_item_with_settings(
@@ -457,6 +463,221 @@ pub async fn paste_clipboard_item(
     }
 
     Ok(())
+}
+
+/// Result of an ordered batch paste. A partial result is returned as `Ok`
+/// because earlier segments may already have reached the target application.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchPasteResult {
+    pub completed: usize,
+    pub total: usize,
+    pub failed_index: Option<usize>,
+    pub failed_item_id: Option<String>,
+}
+
+enum BatchPasteSegment {
+    Text {
+        start_index: usize,
+        items: Vec<ClipboardItem>,
+    },
+    Item {
+        start_index: usize,
+        item: Box<ClipboardItem>,
+    },
+}
+
+impl BatchPasteSegment {
+    fn start_index(&self) -> usize {
+        match self {
+            Self::Text { start_index, .. } | Self::Item { start_index, .. } => *start_index,
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Text { items, .. } => items.len(),
+            Self::Item { .. } => 1,
+        }
+    }
+
+    fn lead_item_id(&self) -> &str {
+        match self {
+            Self::Text { items, .. } => &items[0].id,
+            Self::Item { item, .. } => &item.id,
+        }
+    }
+
+    fn items(&self) -> Vec<&ClipboardItem> {
+        match self {
+            Self::Text { items, .. } => items.iter().collect(),
+            Self::Item { item, .. } => vec![item.as_ref()],
+        }
+    }
+}
+
+/// Paste the selected list indices in display order. Pure text selections use
+/// one clipboard payload and one simulated paste; the experimental mixed mode
+/// segments adjacent text runs and image/file records.
+#[tauri::command]
+pub async fn paste_clipboard_items(
+    app: AppHandle,
+    db: State<'_, DatabaseState>,
+    store: State<'_, ImageStore>,
+    guard: State<'_, Arc<WritebackGuard>>,
+    query: ClipboardItemQuery,
+    selected_indexes: Vec<usize>,
+    mixed: bool,
+) -> Result<BatchPasteResult> {
+    let mut indexes = selected_indexes;
+    indexes.sort_unstable();
+    indexes.dedup();
+    if indexes.is_empty() {
+        return Err(AppError::Clipboard(
+            "no clipboard items selected".to_owned(),
+        ));
+    }
+
+    let pool = db.pool().await;
+    let items = query_items_at_indices(&pool, &query, &indexes).await?;
+    let total = items.len();
+    let all_text = items.iter().all(|item| item.kind == ClipboardKind::Text);
+    if !all_text && !mixed {
+        return Err(AppError::Clipboard(
+            "mixed paste is disabled for images or files".to_owned(),
+        ));
+    }
+
+    let settings = app.state::<SettingsStore>().snapshot();
+    let segments = build_batch_paste_segments(items);
+    let mut completed = 0;
+    let mut first_segment = true;
+
+    for segment in &segments {
+        let write_result = match segment {
+            BatchPasteSegment::Text { items, .. } => {
+                let text = items
+                    .iter()
+                    .map(batch_plain_text)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write_text_payload(guard.inner().as_ref(), &text)
+            }
+            BatchPasteSegment::Item { item, .. } => {
+                let write_plain = should_write_plain_for_paste(
+                    false,
+                    item.kind,
+                    settings.clipboard.content.paste_plain,
+                    settings.clipboard.content.paste_files_as_path,
+                );
+                crate::clipboard::write_to_clipboard(
+                    &store,
+                    guard.inner().as_ref(),
+                    item,
+                    write_plain,
+                )
+            }
+        };
+
+        if let Err(error) = write_result {
+            log::warn!(
+                "batch paste write failed at index {}: {error}",
+                segment.start_index()
+            );
+            return Ok(batch_paste_failure(completed, total, segment));
+        }
+
+        if first_segment {
+            prepare_clipboard_window_for_paste(&app).await;
+            first_segment = false;
+        }
+
+        if let Err(error) = crate::keystroke::simulate_paste() {
+            log::warn!(
+                "batch paste simulation failed at index {}: {error}",
+                segment.start_index()
+            );
+            return Ok(batch_paste_failure(completed, total, segment));
+        }
+
+        for item in segment.items() {
+            if let Err(error) = mark_item_reused_if_enabled(&app, &pool, &item.id, item.kind).await
+            {
+                log::warn!("batch paste reuse update failed for {}: {error}", item.id);
+            }
+        }
+
+        completed += segment.len();
+        if completed < total {
+            tokio::time::sleep(std::time::Duration::from_millis(180)).await;
+        }
+    }
+
+    Ok(BatchPasteResult {
+        completed,
+        total,
+        failed_index: None,
+        failed_item_id: None,
+    })
+}
+
+fn build_batch_paste_segments(items: Vec<ClipboardItem>) -> Vec<BatchPasteSegment> {
+    let mut segments = Vec::new();
+
+    for (index, item) in items.into_iter().enumerate() {
+        if item.kind != ClipboardKind::Text {
+            segments.push(BatchPasteSegment::Item {
+                start_index: index,
+                item: Box::new(item),
+            });
+            continue;
+        }
+
+        match segments.last_mut() {
+            Some(BatchPasteSegment::Text { items, .. }) => items.push(item),
+            _ => segments.push(BatchPasteSegment::Text {
+                start_index: index,
+                items: vec![item],
+            }),
+        }
+    }
+
+    segments
+}
+
+fn batch_plain_text(item: &ClipboardItem) -> &str {
+    match item.sub_kind {
+        Some(ClipboardSubKind::Html | ClipboardSubKind::Rtf) => {
+            item.search_text.as_deref().unwrap_or(&item.content)
+        }
+        _ => &item.content,
+    }
+}
+
+fn batch_paste_failure(
+    completed: usize,
+    total: usize,
+    segment: &BatchPasteSegment,
+) -> BatchPasteResult {
+    BatchPasteResult {
+        completed,
+        total,
+        failed_index: Some(segment.start_index()),
+        failed_item_id: Some(segment.lead_item_id().to_owned()),
+    }
+}
+
+async fn prepare_clipboard_window_for_paste(app: &AppHandle) {
+    if window::is_clipboard_window_pinned() {
+        #[cfg(target_os = "macos")]
+        if let Err(error) = window::macos::resign_clipboard_panel_key(app) {
+            log::warn!("resign clipboard panel key before batch paste failed: {error:?}");
+        }
+    } else if let Err(error) = window::hide_window(app, CLIPBOARD_WINDOW_LABEL) {
+        log::warn!("hide clipboard window before batch paste failed: {error:?}");
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 }
 
 /// 计算复制写回是否强制走纯文本；默认复制纯文本只作用于文本记录。

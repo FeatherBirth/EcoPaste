@@ -58,7 +58,17 @@ pub fn write_to_clipboard(
     Ok(())
 }
 
-fn write_plain_text(ctx: &ClipboardContext, guard: &WritebackGuard, text: &str) -> Result<()> {
+/// Write one aggregated plain-text clipboard payload for batch paste/copy.
+pub fn write_text_payload(guard: &WritebackGuard, text: &str) -> Result<()> {
+    let ctx = ClipboardContext::new().map_err(clip_err)?;
+    write_plain_text(&ctx, guard, text)
+}
+
+pub(crate) fn write_plain_text(
+    ctx: &ClipboardContext,
+    guard: &WritebackGuard,
+    text: &str,
+) -> Result<()> {
     guard.suppress(content_hash(ClipboardKind::Text, text));
     ctx.set_text(text.to_owned()).map_err(clip_err)
 }
@@ -277,6 +287,8 @@ mod tests {
                 width,
                 height,
                 plain_text: plain_text.map(str::to_owned),
+                repair_candidate: false,
+                source_sequence: None,
             })
             .unwrap();
 
@@ -427,9 +439,10 @@ mod tests {
 
         let payload = ClipboardReader::new()
             .unwrap()
-            .read_with_capture_for_source(
+            .read_with_capture_for_source_and_repair(
                 &crate::settings::Capture::default(),
                 Some(r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE"),
+                false,
             )
             .unwrap()
             .expect("Office image capture should succeed");

@@ -19,6 +19,10 @@ import Tooltip from "@/components/Tooltip";
 import { TAURI_EVENT } from "@/constants/events";
 import { WINDOW_LABEL } from "@/constants/windows";
 import { useTauriListen } from "@/hooks/useTauriListen";
+import {
+  clipboardSelectionState,
+  setClipboardSelectionMode,
+} from "@/stores/clipboardSelection";
 import { clipboardViewState } from "@/stores/clipboardView";
 import { settingsState } from "@/stores/settings";
 import { formatShortcutDisplay } from "@/utils/shortcut";
@@ -40,6 +44,7 @@ const PREFERENCE_SHORTCUT = formatShortcutDisplay("CmdOrCtrl+,", " ");
 const Header: FC = () => {
   const { t } = useTranslation("clipboard");
   const settings = useSnapshot(settingsState);
+  const selection = useSnapshot(clipboardSelectionState);
   const [pinned, setPinned] = useState(false);
   const [searchBlurToken, setSearchBlurToken] = useState(0);
   const [searchClearToken, setSearchClearToken] = useState(0);
@@ -82,6 +87,13 @@ const Header: FC = () => {
 
     await setClipboardWindowPinned(next);
     setPinned(next);
+  };
+
+  /**
+   * Toggle the list's explicit multi-selection mode.
+   */
+  const handleToggleSelectionMode = () => {
+    setClipboardSelectionMode(!selection.active);
   };
 
   /**
@@ -186,6 +198,12 @@ const Header: FC = () => {
       <img alt={t("header.logoAlt")} className="size-5" src="/logo.png" />
 
       <div className="flex items-center gap-1">
+        {selection.active ? (
+          <span className="text-ant-primary text-xs">
+            {t("header.selectedCount", { count: selection.count })}
+          </span>
+        ) : null}
+
         <SearchInput
           allowClear
           blurToken={searchBlurToken}
@@ -196,6 +214,19 @@ const Header: FC = () => {
           placeholder={t("header.searchPlaceholder")}
           size="small"
         />
+
+        <Tooltip
+          title={t(
+            selection.active ? "header.exitMultiSelect" : "header.multiSelect",
+          )}
+        >
+          <CustomIconButton
+            icon={<i aria-hidden="true" className="i-lucide:list-checks" />}
+            onClick={handleToggleSelectionMode}
+            size="small"
+            type={selection.active ? "primary" : "text"}
+          />
+        </Tooltip>
 
         <Tooltip title={t(pinned ? "header.unpin" : "header.pin")}>
           <CustomIconButton

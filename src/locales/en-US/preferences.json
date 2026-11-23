@@ -462,9 +462,17 @@
           },
           "title": "Middle Mouse Button"
         },
+        "mixedBatch": {
+          "description": "When a multi-selection includes images or files, paste each segment in list order; adjacent text is still merged into one paste.",
+          "title": "Mixed Text and Image Paste"
+        },
         "plainDefault": {
           "description": "When pasting text records, strip HTML/RTF formatting and paste plain text by default.",
           "title": "Paste as Plain Text by Default"
+        },
+        "repairImageClipboard": {
+          "description": "Some PCs emit screenshots as PNG-only clipboard data, which cannot be pasted directly. When enabled, EcoPaste adds standard bitmap formats for pure images.",
+          "title": "Repair Screenshot Paste Automatically"
         }
       },
       "permissions": {

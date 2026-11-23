@@ -88,6 +88,35 @@ Tests must cover:
 - Image actions exposing `pasteAsPlainText` only when fallback text exists.
 - Existing image rows backfilling a newly available fallback during dedupe.
 
+## Windows PNG-Only Image Repair
+
+`repair_pure_image_clipboard_format` defaults to `false`. Detect the optional
+repair candidate only while the setting is enabled; with the switch off, image
+reads must not register custom clipboard formats or inspect extra formats.
+
+The candidate contract is intentionally narrow:
+
+- image payload classification won; and
+- Windows exposes PNG; and
+- none of `CF_BITMAP`, `CF_DIB`, or `CF_DIBV5` exists; and
+- no Unicode text, HTML, RTF, or HDROP flavor exists.
+
+Persist first, then compare `GetClipboardSequenceNumber` with the captured
+sequence and inspect the formats again before rewriting through the existing
+image writer and `WritebackGuard`. A changed sequence cancels repair so a newer
+user copy is never overwritten. Any text-bearing Office/WPS image payload is
+excluded from repair, preserving normal image+text writeback and plain-text-only
+writeback behavior.
+
+## Ordered Batch Paste
+
+`paste_clipboard_items(query, selectedIndexes, mixed)` resolves complete rows
+from the same filtered/pinned-first display order as the virtual list. Text-only
+selections join OS plain-text representations with `\n`, write one payload, and
+simulate one paste. With the experimental mixed setting enabled, contiguous text
+rows remain merged while image/file rows are pasted as ordered segments; stop on
+the first failure and return `completed`/`total` plus the failed display index.
+
 ```rust
 // Wrong: forcing Office text loses the native image representation.
 // Keep image capture and attach the plain-text fallback instead.

@@ -90,20 +90,32 @@ Replace the virtual-row text viewer with one read-only `<textarea>`:
 - native scrolling, selection, select-all, and copy;
 - `select-text`, no spellcheck, and soft wrapping;
 - transparent styling using Ant Design tokens;
-- default panel height of 360 logical pixels, capped by the existing 480px maximum;
+- height follows the estimated wrapped content, with the clipboard window height
+  as the upper bound;
 - `overflow-auto` so the scrollbar appears only when content actually exceeds the panel.
 
-This intentionally trades virtual DOM for stable native selection. The existing capture size setting remains the performance guard. The earlier 32-character row estimate undercounted visual wrapping for CJK text and made long previews too short, so it is now only a lower-bound estimate; the 360px default prevents premature scrollbars.
+This intentionally trades virtual DOM for stable native selection. The existing
+capture size setting remains the performance guard. The 32-character row
+estimate is used only for layout bounds; short content shrinks the panel and
+long content caps at the clipboard-window height before scrolling.
 
 ## Image Viewer
 
-Add viewer-local zoom state keyed by payload id:
+Keep zoom state keyed by payload id in the preview page:
 
 - default scale is fit-to-panel (`1.0` in this local scale space);
 - wheel changes scale around the cursor, clamped to `0.25..=4.0`;
-- zoomed image lives in an `overflow-auto` container so large sizes remain navigable;
+- panel width/height and the image grow or shrink together, clamped by the
+  clipboard-window-sized panel limits;
 - payload/session change resets zoom to fit;
 - scrolling the image container must not close the preview.
+
+## Windows Outside-Click Exclusion
+
+The clipboard window auto-hide hook runs independently of the preview WebView
+focus path. A click inside the current preview panel looks like an outside click
+relative to the clipboard window. The mouse hook must check the reported preview
+panel physical rect first and leave the clipboard window visible for that click.
 
 No Rust clipboard contract is needed for zoom because it only affects preview presentation.
 

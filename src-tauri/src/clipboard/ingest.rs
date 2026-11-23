@@ -767,6 +767,8 @@ mod tests {
             width: 20,
             height: 10,
             plain_text: None,
+            repair_candidate: false,
+            source_sequence: None,
         });
         let item = build_item(&s, &payload).unwrap().unwrap();
         assert_eq!(item.kind, ClipboardKind::Image);
@@ -790,6 +792,8 @@ mod tests {
             width: 20,
             height: 10,
             plain_text: Some("alpha\tbeta\n1\t2".to_owned()),
+            repair_candidate: false,
+            source_sequence: None,
         });
 
         let item = build_item(&s, &payload).unwrap().unwrap();
@@ -811,6 +815,8 @@ mod tests {
             width: 20,
             height: 10,
             plain_text: None,
+            repair_candidate: false,
+            source_sequence: None,
         });
         let item =
             build_item_with_settings(&s, &payload, &capture, &Sensitive::default(), false).unwrap();
@@ -830,6 +836,8 @@ mod tests {
             width: 20,
             height: 10,
             plain_text: None,
+            repair_candidate: false,
+            source_sequence: None,
         });
         let item =
             build_item_with_settings(&s, &payload, &capture, &Sensitive::default(), false).unwrap();

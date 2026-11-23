@@ -19,6 +19,8 @@ import { PreviewContent, PreviewHeader } from "./components/PreviewContent";
 import PreviewContentTransition from "./components/PreviewContentTransition";
 import {
   PREVIEW_CONNECTOR_VARIANTS,
+  PREVIEW_PANEL_MAX_HEIGHT,
+  PREVIEW_PANEL_MAX_WIDTH,
   PREVIEW_PANEL_TRANSITION,
   PREVIEW_PANEL_VARIANTS,
 } from "./constants";
@@ -29,6 +31,7 @@ import {
   resolveDynamicPanelRect,
   resolveEffectivePanelSize,
   resolveMeasurePanelStyle,
+  resolvePreviewPanelLimits,
 } from "./layout";
 import { hasMeasuredPanelSize, useMeasuredPanelSize } from "./measurement";
 import { usePreviewMotion } from "./motion";
@@ -40,6 +43,10 @@ const EMPTY_RECT = {
   width: 1,
 };
 const EMPTY_POINT = { x: 0, y: 0 };
+const DEFAULT_PANEL_LIMITS = {
+  height: PREVIEW_PANEL_MAX_HEIGHT,
+  width: PREVIEW_PANEL_MAX_WIDTH,
+};
 const EMPTY_CONNECTOR = {
   control1: EMPTY_POINT,
   control2: EMPTY_POINT,
@@ -64,6 +71,10 @@ const Preview: FC = () => {
   const [previewState, setPreviewState] =
     useState<ClipboardPreviewState | null>(null);
   const [payloadResetToken, setPayloadResetToken] = useState(0);
+  const [imageZoomState, setImageZoomState] = useState<{
+    itemId: string | null;
+    zoom: number;
+  }>({ itemId: null, zoom: 1 });
   const { clipboard } = useSnapshot(settingsState);
   const redactSecrets = clipboard.sensitive.redactSecrets;
   const renderState = usePreviewRenderState(previewState);
@@ -75,11 +86,27 @@ const Preview: FC = () => {
     useMeasuredPanelSize();
   const active = previewState !== null;
   const visibleState = previewState ?? renderState;
+  const visibleItemId = visibleState?.itemId ?? null;
+  const imageZoom =
+    imageZoomState.itemId === visibleItemId ? imageZoomState.zoom : 1;
+  const panelLimits = visibleState
+    ? resolvePreviewPanelLimits(visibleState)
+    : DEFAULT_PANEL_LIMITS;
   const effectivePanelSize = visibleState
-    ? resolveEffectivePanelSize(visibleState.layout, measuredPanelSize, payload)
+    ? resolveEffectivePanelSize(
+        visibleState.layout,
+        measuredPanelSize,
+        payload,
+        panelLimits,
+        imageZoom,
+      )
     : measuredPanelSize;
   const panelRect = visibleState
-    ? resolveDynamicPanelRect(visibleState.layout, effectivePanelSize)
+    ? resolveDynamicPanelRect(
+        visibleState.layout,
+        effectivePanelSize,
+        panelLimits,
+      )
     : EMPTY_RECT;
   const reportedPanelRect = useMemo(() => {
     return {
@@ -136,6 +163,10 @@ const Preview: FC = () => {
     setPayloadResetToken((current) => {
       return current + 1;
     });
+  };
+
+  const handleImageZoomChange = (zoom: number) => {
+    setImageZoomState({ itemId: visibleItemId, zoom });
   };
 
   useTauriListen<BeforeDestroyPayload>(
@@ -219,7 +250,11 @@ const Preview: FC = () => {
               "opacity-60": isLoading && payload !== null,
             })}
           >
-            <PreviewContent payload={payload} />
+            <PreviewContent
+              imageZoom={imageZoom}
+              onImageZoomChange={handleImageZoomChange}
+              payload={payload}
+            />
           </div>
         </PreviewContentTransition>
 

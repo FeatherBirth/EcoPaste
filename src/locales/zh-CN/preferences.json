@@ -462,9 +462,17 @@
           },
           "title": "鼠标中键"
         },
+        "mixedBatch": {
+          "description": "多选包含图片或文件时，按列表顺序逐条粘贴；相邻文本仍合并为一次粘贴。",
+          "title": "支持文本和图片混合粘贴"
+        },
         "plainDefault": {
           "description": "粘贴文本记录时默认去除 HTML/RTF 等格式，只粘贴纯文本。",
           "title": "默认纯文本粘贴"
+        },
+        "repairImageClipboard": {
+          "description": "部分电脑截图后只提供 PNG 格式，首次直接粘贴会失败。开启后会为这类纯图片补齐标准位图格式。",
+          "title": "自动修复截图后无法粘贴的问题"
         }
       },
       "permissions": {

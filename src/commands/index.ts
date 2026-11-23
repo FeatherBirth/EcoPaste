@@ -147,6 +147,13 @@ export interface ClipboardPreviewPayload {
   totalFiles: number;
 }
 
+export interface BatchPasteResult {
+  completed: number;
+  total: number;
+  failedIndex: number | null;
+  failedItemId: string | null;
+}
+
 export interface StorageUsage {
   totalBytes: number;
   databaseBytes: number;
@@ -1004,6 +1011,21 @@ export const pasteClipboardItem = (id: string, plain: boolean) => {
     TAURI_COMMAND.PASTE_CLIPBOARD_ITEM,
     "commands:labels.paste",
     { id, plain },
+  );
+};
+
+/**
+ * Resolve selected list indices in Rust and paste them in display order.
+ */
+export const pasteClipboardItems = (
+  query: ClipboardItemQuery,
+  selectedIndexes: number[],
+  mixed: boolean,
+) => {
+  return call<BatchPasteResult>(
+    TAURI_COMMAND.PASTE_CLIPBOARD_ITEMS,
+    "commands:labels.pasteBatch",
+    { mixed, query, selectedIndexes },
   );
 };
 

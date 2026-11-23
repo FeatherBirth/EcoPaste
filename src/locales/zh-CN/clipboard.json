@@ -52,11 +52,14 @@
   },
   "header": {
     "clearRecords": "清空记录",
+    "exitMultiSelect": "退出多选",
     "logoAlt": "EcoPaste 标志",
     "moreActions": "更多操作",
+    "multiSelect": "多选：单击追加，Cmd/Ctrl+单击取消，Shift 连续选择，Enter 批量粘贴",
     "openPreference": "偏好设置",
     "pin": "固定窗口",
     "searchPlaceholder": "搜索剪贴板...",
+    "selectedCount": "已选 {{count}} 项",
     "unpin": "取消固定"
   },
   "note": {

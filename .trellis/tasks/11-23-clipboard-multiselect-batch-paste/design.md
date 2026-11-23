@@ -5,6 +5,7 @@
 React owns transient selection intent:
 
 - focus/active index;
+- explicit `selectionMode` from the header control;
 - selection anchor index;
 - selected index set;
 - modifier-click interpretation;
@@ -32,7 +33,9 @@ selectedIndexes: Set<number>;     // all explicitly selected rows
 
 `selectedId` remains the keyboard focus and single-item action target. `selectedIndexes` expresses multi-selection:
 
-- normal click: clear selected set, set focus and anchor;
+- outside selection mode, normal click clears the set and keeps historic
+  single-click paste/copy;
+- in selection mode, normal click adds the row and does not paste;
 - Ctrl/Cmd+click: toggle target index, set focus and anchor to target;
 - Shift+click: replace selection with anchor..target when no Ctrl/Cmd;
 - Ctrl/Cmd+Shift+click: add anchor..target to the existing set;

@@ -9,6 +9,8 @@ import {
   PREVIEW_FILE_MORE_FOOTER_HEIGHT,
   PREVIEW_FILE_ROW_HEIGHT,
   PREVIEW_FILE_VERTICAL_PADDING,
+  PREVIEW_IMAGE_ZOOM_MAX,
+  PREVIEW_IMAGE_ZOOM_MIN,
   PREVIEW_PANEL_GAP,
   PREVIEW_PANEL_HEADER_HEIGHT,
   PREVIEW_PANEL_IMAGE_PADDING_X,
@@ -18,7 +20,7 @@ import {
   PREVIEW_PANEL_MAX_WIDTH,
   PREVIEW_PANEL_MIN_HEIGHT,
   PREVIEW_PANEL_MIN_WIDTH,
-  PREVIEW_TEXT_DEFAULT_HEIGHT,
+  PREVIEW_PANEL_ZOOM_MAX_WIDTH,
   PREVIEW_TEXT_ROW_HEIGHT,
   PREVIEW_TEXT_SOFT_WRAP_CHARS,
   PREVIEW_TEXT_VERTICAL_PADDING,
@@ -32,18 +34,16 @@ export function resolveEffectivePanelSize(
   layout: ClipboardPreviewState["layout"],
   measuredSize: PreviewMeasuredSize,
   payload: ClipboardPreviewPayload | null,
+  panelLimits: PreviewMeasuredSize,
+  imageZoom: number,
 ): PreviewMeasuredSize {
   if (!payload) return measuredSize;
 
   if (payload.kind === "text") {
-    return resolveTextPanelSize(layout, payload.text ?? "");
+    return resolveTextPanelSize(payload.text ?? "", panelLimits);
   }
 
-  if (payload.singleImagePreview) {
-    return measuredSize;
-  }
-
-  if (payload.kind === "files") {
+  if (payload.kind === "files" && !payload.singleImagePreview) {
     return resolveFilesPanelSize(
       layout,
       payload.files.length,
@@ -51,7 +51,9 @@ export function resolveEffectivePanelSize(
     );
   }
 
-  if (payload.kind !== "image") return measuredSize;
+  if (payload.kind !== "image" && !payload.singleImagePreview) {
+    return measuredSize;
+  }
 
   const imageSize = resolveImagePanelSize(
     layout,
@@ -60,7 +62,7 @@ export function resolveEffectivePanelSize(
   );
   if (!imageSize) return measuredSize;
 
-  return imageSize;
+  return zoomImagePanelSize(imageSize, imageZoom, panelLimits);
 }
 
 /**
@@ -69,20 +71,54 @@ export function resolveEffectivePanelSize(
 export function resolveDynamicPanelRect(
   layout: ClipboardPreviewState["layout"],
   measuredSize: PreviewMeasuredSize,
+  panelLimits: PreviewMeasuredSize,
 ) {
   const width = clamp(
     measuredSize.width,
     PREVIEW_PANEL_MIN_WIDTH,
-    Math.min(PREVIEW_PANEL_MAX_WIDTH, layout.panelRect.width),
+    panelLimits.width,
   );
   const height = clamp(
     measuredSize.height,
     PREVIEW_PANEL_MIN_HEIGHT,
-    Math.min(PREVIEW_PANEL_MAX_HEIGHT, layout.panelRect.height),
+    panelLimits.height,
   );
   const raw = rawDynamicPanelRect(layout, width, height);
 
   return clampRect(raw, insetRect(layout.overlayRect, PREVIEW_PANEL_MARGIN));
+}
+
+/**
+ * Preview height follows the clipboard window height; image zoom may use a
+ * wider panel than the default content width.
+ */
+export function resolvePreviewPanelLimits(
+  state: ClipboardPreviewState,
+): PreviewMeasuredSize {
+  const clipboardWidth = state.clipboardWindow
+    ? state.clipboardWindow.width / state.scaleFactor
+    : PREVIEW_PANEL_ZOOM_MAX_WIDTH;
+  const clipboardHeight = state.clipboardWindow
+    ? state.clipboardWindow.height / state.scaleFactor
+    : PREVIEW_PANEL_MAX_HEIGHT;
+
+  return {
+    height: Math.max(
+      PREVIEW_PANEL_MIN_HEIGHT,
+      Math.min(
+        clipboardHeight,
+        state.layout.overlayRect.height - PREVIEW_PANEL_MARGIN * 2,
+      ),
+    ),
+    width: Math.max(
+      PREVIEW_PANEL_MIN_WIDTH,
+      Math.min(
+        PREVIEW_PANEL_ZOOM_MAX_WIDTH,
+        clipboardWidth,
+        state.layout.overlayRect.width - PREVIEW_PANEL_MARGIN * 2,
+      ),
+    ),
+  };
 }
 
 /**
@@ -212,17 +248,11 @@ function resolveImagePanelSize(
  * 文本 viewer 使用虚拟行渲染，测量层不再渲染整段内容；这里按同款软切行估算面板尺寸。
  */
 function resolveTextPanelSize(
-  layout: ClipboardPreviewState["layout"],
   text: string,
+  panelLimits: PreviewMeasuredSize,
 ): PreviewMeasuredSize {
-  const maxPanelWidth = Math.min(
-    PREVIEW_PANEL_MAX_WIDTH,
-    layout.panelRect.width,
-  );
-  const maxPanelHeight = Math.min(
-    PREVIEW_PANEL_MAX_HEIGHT,
-    layout.panelRect.height,
-  );
+  const maxPanelWidth = panelLimits.width;
+  const maxPanelHeight = panelLimits.height;
   const rowCount = countTextPreviewRows(text);
   const contentHeight =
     rowCount === 0
@@ -231,14 +261,52 @@ function resolveTextPanelSize(
 
   return {
     height: clamp(
-      Math.max(
-        PREVIEW_TEXT_DEFAULT_HEIGHT,
-        PREVIEW_PANEL_HEADER_HEIGHT + contentHeight,
-      ),
+      PREVIEW_PANEL_HEADER_HEIGHT + contentHeight,
       PREVIEW_PANEL_MIN_HEIGHT,
       maxPanelHeight,
     ),
     width: clamp(maxPanelWidth, PREVIEW_PANEL_MIN_WIDTH, maxPanelWidth),
+  };
+}
+
+/**
+ * Grow or shrink the complete image panel around its content, keeping header
+ * and padding stable while the image itself scales with the panel.
+ */
+function zoomImagePanelSize(
+  baseSize: PreviewMeasuredSize,
+  zoom: number,
+  panelLimits: PreviewMeasuredSize,
+): PreviewMeasuredSize {
+  const boundedZoom = clamp(
+    zoom,
+    PREVIEW_IMAGE_ZOOM_MIN,
+    PREVIEW_IMAGE_ZOOM_MAX,
+  );
+  const baseImageWidth = Math.max(
+    1,
+    baseSize.width - PREVIEW_PANEL_IMAGE_PADDING_X,
+  );
+  const baseImageHeight = Math.max(
+    1,
+    baseSize.height -
+      PREVIEW_PANEL_HEADER_HEIGHT -
+      PREVIEW_PANEL_IMAGE_PADDING_Y,
+  );
+
+  return {
+    height: clamp(
+      baseImageHeight * boundedZoom +
+        PREVIEW_PANEL_HEADER_HEIGHT +
+        PREVIEW_PANEL_IMAGE_PADDING_Y,
+      PREVIEW_PANEL_MIN_HEIGHT,
+      panelLimits.height,
+    ),
+    width: clamp(
+      baseImageWidth * boundedZoom + PREVIEW_PANEL_IMAGE_PADDING_X,
+      PREVIEW_PANEL_MIN_WIDTH,
+      panelLimits.width,
+    ),
   };
 }
 
