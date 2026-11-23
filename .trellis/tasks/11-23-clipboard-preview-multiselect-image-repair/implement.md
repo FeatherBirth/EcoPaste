@@ -9,7 +9,10 @@
 4. Build each platform with signatures, then construct one complete latest.json
    in the final release job.
 5. Configure Windows updater requests to honor the WinINet HTTP proxy.
-6. Run frontend/Rust quality gates, sign the Windows package, install it, and
+6. Add System/Direct/Custom proxy controls and restore the current GitHub link.
+7. Preserve the original P icon geometry while regenerating platform icons and
+   branded NSIS header/sidebar artwork.
+8. Run frontend/Rust quality gates, sign the Windows package, install it, and
    verify update check/download/install through an HTTPS signed manifest.
 
 ## Ordered Checklist

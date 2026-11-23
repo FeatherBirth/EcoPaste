@@ -15,8 +15,8 @@ use tauri::AppHandle;
 use crate::core::{AppError, Result};
 
 use super::model::{
-    ItemAction, Language, Settings, WINDOW_OPEN_GROUP_PREFIX, WINDOW_OPEN_SELECTION_ALL,
-    WINDOW_OPEN_SELECTION_PRESERVE,
+    ItemAction, Language, Settings, UpdateProxyMode, WINDOW_OPEN_GROUP_PREFIX,
+    WINDOW_OPEN_SELECTION_ALL, WINDOW_OPEN_SELECTION_PRESERVE,
 };
 
 const FILENAME: &str = "settings.json";
@@ -206,6 +206,7 @@ fn write_atomic(path: &Path, settings: &Settings) -> Result<()> {
 /// 校验设置之间的跨字段约束，避免非法配置写入磁盘。
 fn validate_settings(settings: &Settings) -> Result<()> {
     validate_window_open_group(&settings.clipboard.window.select_group_on_open)?;
+    validate_update_proxy(settings)?;
 
     let open_clipboard = normalize_shortcut_value(&settings.shortcuts.open_clipboard);
     let open_preference = normalize_shortcut_value(&settings.shortcuts.open_preference);
@@ -217,6 +218,35 @@ fn validate_settings(settings: &Settings) -> Result<()> {
     if open_clipboard == open_preference {
         return Err(AppError::Other(anyhow::anyhow!(
             "global shortcuts must be unique"
+        )));
+    }
+
+    Ok(())
+}
+
+/// Custom update proxies must be a valid HTTP(S) URL; system/direct modes ignore the text value.
+fn validate_update_proxy(settings: &Settings) -> Result<()> {
+    if settings.update.proxy_mode != UpdateProxyMode::Custom {
+        return Ok(());
+    }
+
+    let value = settings.update.proxy_url.trim();
+    if value.is_empty() {
+        return Err(AppError::Other(anyhow::anyhow!(
+            "custom update proxy is required"
+        )));
+    }
+
+    let url = url::Url::parse(value)
+        .map_err(|err| AppError::Other(anyhow::anyhow!("custom update proxy is invalid: {err}")))?;
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return Err(AppError::Other(anyhow::anyhow!(
+            "custom update proxy must use http or https"
+        )));
+    }
+    if url.host_str().is_none() {
+        return Err(AppError::Other(anyhow::anyhow!(
+            "custom update proxy host is missing"
         )));
     }
 
@@ -339,6 +369,11 @@ mod tests {
             crate::settings::UpdateFrequency::Daily
         );
         assert_eq!(
+            parsed.update.proxy_mode,
+            crate::settings::UpdateProxyMode::System
+        );
+        assert!(parsed.update.proxy_url.is_empty());
+        assert_eq!(
             parsed.clipboard.content.sort,
             crate::db::models::ClipboardItemSort::UpdatedAt
         );
@@ -400,5 +435,20 @@ mod tests {
         settings.clipboard.window.select_group_on_open = "invalid".to_owned();
 
         assert!(validate_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn validate_settings_checks_custom_update_proxy() {
+        let mut settings = Settings::default();
+        settings.update.proxy_mode = UpdateProxyMode::Custom;
+        settings.update.proxy_url = "127.0.0.1:7890".to_owned();
+        assert!(validate_settings(&settings).is_err());
+
+        settings.update.proxy_url = "http://127.0.0.1:7890".to_owned();
+        assert!(validate_settings(&settings).is_ok());
+
+        settings.update.proxy_mode = UpdateProxyMode::Direct;
+        settings.update.proxy_url = String::new();
+        assert!(validate_settings(&settings).is_ok());
     }
 }

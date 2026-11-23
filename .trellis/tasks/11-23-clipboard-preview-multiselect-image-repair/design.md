@@ -16,10 +16,15 @@
 - Windows updater HTTP requests explicitly use the current user's WinINet proxy
   when enabled. GitHub access through the normal system proxy therefore works
   without requiring global environment variables.
-- The legacy release server, beta/nightly channel switches, donation QR, tray
-  source link, and About-page external links are intentionally removed. The
-  update window's release-notes link is the only remaining update-related link
-  and points to the current repository.
+- The legacy release server, beta/nightly channel switches, donation QR, and
+  tray source link are intentionally removed. The About page links to the
+  current repository, and update release notes link to the matching current
+  repository release.
+- The update proxy defaults to System. Direct mode bypasses all proxies; Custom
+  mode validates and persists an HTTP(S) proxy URL.
+- The icon generator extracts the original white P silhouette, preserves its
+  geometry, and only refreshes the background treatment. NSIS header/sidebar
+  images are generated from the same icon.
 
 ## Architecture and Boundaries
 

@@ -978,6 +978,8 @@ not a frontend-only preference action.
 - Settings fields:
   - `update.autoCheck: bool`
   - `update.frequency: daily | weekly | monthly`
+  - `update.proxyMode: system | direct | custom`
+  - `update.proxyUrl: string`
   - `update.lastCheckedAt: Option<String>`
   - `update.skippedVersion: Option<String>`
 
@@ -1015,6 +1017,9 @@ not a frontend-only preference action.
   values and pass the selected HTTPS/HTTP proxy to `UpdaterBuilder::proxy`.
   `reqwest` does not automatically read the Windows registry proxy, and without
   this bridge a machine can open GitHub in a browser while the updater fails.
+- `proxyMode=system` uses `ProxyEnable`/`ProxyServer` on Windows;
+  `proxyMode=direct` supplies no proxy; `proxyMode=custom` requires a valid
+  `http` or `https` URL in `proxyUrl`.
 - Optional environment overrides:
   - `ECOPASTE_UPDATE_ENDPOINT`: endpoint override for local loopback or
     controlled update testing. It must not contain a production fallback to a
@@ -1040,6 +1045,8 @@ not a frontend-only preference action.
   state.
 - System proxy disabled or unavailable -> updater keeps the default direct
   connection behavior; invalid proxy values are ignored.
+- Custom proxy mode with empty/invalid/non-HTTP URL -> settings update fails
+  before persistence.
 
 ### 5. Good/Base/Bad Cases
 

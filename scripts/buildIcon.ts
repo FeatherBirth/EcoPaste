@@ -1,13 +1,25 @@
 import { execSync } from "node:child_process";
+import { copyFileSync } from "node:fs";
 
 (() => {
-  const { env, platform } = process;
+  if (process.platform === "win32") {
+    execSync(
+      "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/buildBrandIcon.ps1",
+      { stdio: "inherit" },
+    );
+  }
 
-  const isMac = env.PLATFORM?.startsWith("macos") ?? platform === "darwin";
+  execSync("tauri icon src-tauri/assets/logo.png", { stdio: "inherit" });
 
-  const logoName = isMac ? "logo-mac" : "logo";
+  copyFileSync("src-tauri/icons/icon.png", "src-tauri/assets/logo.png");
+  copyFileSync("src-tauri/icons/icon.png", "src-tauri/assets/logo-mac.png");
+  copyFileSync("src-tauri/icons/icon.png", "public/logo.png");
+  copyFileSync("src-tauri/icons/icon.png", "public/logo-mac.png");
 
-  const command = `tauri icon src-tauri/assets/${logoName}.png`;
-
-  execSync(command, { stdio: "inherit" });
+  if (process.platform === "win32") {
+    execSync(
+      "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/buildInstallerAssets.ps1",
+      { stdio: "inherit" },
+    );
+  }
 })();

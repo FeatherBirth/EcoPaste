@@ -142,6 +142,10 @@
           "controlLabel": "检查更新",
           "description": "检查 EcoPaste 是否有可用的新版本。",
           "title": "检查更新"
+        },
+        "github": {
+          "controlLabel": "打开",
+          "title": "GitHub"
         }
       },
       "actions": {
@@ -580,6 +584,20 @@
             "weekly": "每周"
           },
           "title": "自动检查频率"
+        },
+        "proxyMode": {
+          "description": "选择检查更新时使用的网络代理。系统模式会读取 Windows 的代理设置。",
+          "options": {
+            "custom": "自定义",
+            "direct": "直连",
+            "system": "跟随系统"
+          },
+          "title": "更新代理"
+        },
+        "proxyUrl": {
+          "description": "填写 HTTP 或 HTTPS 代理地址，例如 http://127.0.0.1:7890。",
+          "placeholder": "http://127.0.0.1:7890",
+          "title": "自定义代理地址"
         }
       },
       "window": {

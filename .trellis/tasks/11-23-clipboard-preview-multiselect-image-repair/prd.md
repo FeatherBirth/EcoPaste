@@ -51,11 +51,13 @@
 ### R4 - 1.6.0 发布与 GitHub 自动更新
 
 - 版本号统一提升到 `1.6.0`，同步 `package.json`、`src-tauri/Cargo.toml` 与根 Cargo lock 条目。
-- 移除 `releases.ecopaste.cn`、Beta/Nightly 更新入口、托盘开源地址、关于页 GitHub 入口和作者赞赏二维码。
+- 移除 `releases.ecopaste.cn`、Beta/Nightly 更新入口、托盘开源地址和作者赞赏二维码；“关于”页保留当前仓库 GitHub 入口。
 - 自动更新读取 `https://github.com/FeatherBirth/EcoPaste/releases/latest/download/latest.json`，签名校验覆盖 Windows x64/ARM64 与 macOS Intel/Apple Silicon。
 - 发布流程不得让各平台并行上传互不完整的 `latest.json`；所有平台构建完成后合并生成唯一清单并校验四个目标。
 - Windows 自动更新需要兼容系统代理配置，避免 GitHub 可访问但应用更新请求失败。
 - Release 说明必须同时提供中英文详细内容，并在发布后验证公开 `latest.json` 可访问且版本、URL、签名字段完整。
+- 更新代理提供“跟随系统 / 直连 / 自定义”三种模式。
+- 应用图标保持原图白色 P 造型并做轻量现代化，安装器提供品牌化顶部横幅、侧栏图和一致图标。
 
 ## Acceptance Criteria
 

@@ -142,6 +142,10 @@
           "controlLabel": "Check",
           "description": "Check whether a new EcoPaste version is available.",
           "title": "Check for Updates"
+        },
+        "github": {
+          "controlLabel": "Open",
+          "title": "GitHub"
         }
       },
       "actions": {
@@ -580,6 +584,20 @@
             "weekly": "Weekly"
           },
           "title": "Update Check Frequency"
+        },
+        "proxyMode": {
+          "description": "Choose the network proxy used for update checks. System mode reads the Windows proxy configuration.",
+          "options": {
+            "custom": "Custom",
+            "direct": "Direct",
+            "system": "System"
+          },
+          "title": "Update Proxy"
+        },
+        "proxyUrl": {
+          "description": "Enter an HTTP or HTTPS proxy URL, such as http://127.0.0.1:7890.",
+          "placeholder": "http://127.0.0.1:7890",
+          "title": "Custom Proxy URL"
         }
       },
       "window": {

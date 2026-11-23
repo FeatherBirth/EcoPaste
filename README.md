@@ -37,6 +37,7 @@ The app is designed to be fast, lightweight, and maintainable, with local storag
 - Export and import `.ecopastebak` backups, including encrypted backup containers.
 - Keep clipboard data, resources, and settings local to your machine.
 - Check signed updates from this repository's GitHub Releases.
+- Follow the Windows system proxy automatically or choose a direct/custom update proxy.
 
 ## Updates
 
@@ -48,6 +49,10 @@ Intel/Apple Silicon.
 Version 1.6.0 introduces the current updater signing identity. Install 1.6.0
 manually once; later versions can be downloaded and installed from the in-app
 update window.
+
+Update network access defaults to the system proxy. If GitHub is reachable only
+through a specific local proxy, open Preferences -> Data -> Updates and select
+the custom proxy mode.
 
 ## Install on Windows
 

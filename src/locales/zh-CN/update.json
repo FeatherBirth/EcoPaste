@@ -2,7 +2,7 @@
   "actions": {
     "cancel": "取消",
     "checkAgain": "重新检查",
-    "download": "安装更新",
+    "download": "下载更新",
     "install": "安装并重新启动",
     "later": "稍后提醒我",
     "ok": "好",
@@ -10,7 +10,7 @@
     "skip": "跳过这个版本"
   },
   "description": {
-    "available": "EcoPaste {{version}} 现已可用，您当前使用的是 {{currentVersion}}。要现在安装这个更新吗？",
+    "available": "EcoPaste {{version}} 现已可用，您当前使用的是 {{currentVersion}}。要现在下载这个更新吗？",
     "checkError": "无法检查可用更新，请稍后再试。",
     "checking": "正在连接更新服务器，请稍候。",
     "downloaded": "更新已经下载完成，可以安装并重新启动 EcoPaste。",

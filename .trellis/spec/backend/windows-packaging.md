@@ -34,6 +34,13 @@ upgrade automation.
 - A GitHub release publishes one combined `latest.json` after every matrix job
   completes. Do not let platform jobs race by uploading their own updater
   manifests.
+- `scripts/buildBrandIcon.ps1` preserves the original white P artwork while
+  producing a transparent 1024px source with updated background treatment.
+- `scripts/buildInstallerAssets.ps1` generates `src-tauri/nsis/header.bmp`
+  (150x57) and `sidebar.bmp` (164x314) from the generated app icon.
+- `tauri.windows.conf.json` must point `headerImage`, `sidebarImage`,
+  `installerIcon`, and `uninstallerIcon` at generated assets. The Rust icon
+  build must run before NSIS packaging.
 - The install wrapper waits for the installer process, not its launched child
   application, then verifies one responsive installed process.
 

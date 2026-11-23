@@ -652,8 +652,19 @@ pub struct Feedback {
 pub struct Update {
     pub auto_check: bool,
     pub frequency: UpdateFrequency,
+    pub proxy_mode: UpdateProxyMode,
+    pub proxy_url: String,
     pub last_checked_at: Option<String>,
     pub skipped_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateProxyMode {
+    #[default]
+    System,
+    Direct,
+    Custom,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]

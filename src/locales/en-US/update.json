@@ -2,7 +2,7 @@
   "actions": {
     "cancel": "Cancel",
     "checkAgain": "Check Again",
-    "download": "Install Update",
+    "download": "Download Update",
     "install": "Install and Relaunch",
     "later": "Remind Me Later",
     "ok": "OK",
@@ -10,7 +10,7 @@
     "skip": "Skip This Version"
   },
   "description": {
-    "available": "EcoPaste {{version}} is now available. You are currently running {{currentVersion}}. Would you like to install it now?",
+    "available": "EcoPaste {{version}} is now available. You are currently running {{currentVersion}}. Would you like to download it now?",
     "checkError": "EcoPaste could not check for updates. Please try again later.",
     "checking": "Connecting to the update server. Please wait.",
     "downloaded": "The update has been downloaded and is ready to install.",

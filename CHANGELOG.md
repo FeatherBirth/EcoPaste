@@ -12,6 +12,9 @@
 - Add a Windows-only screenshot clipboard repair setting. It is disabled by default and preserves the existing Office/Excel behavior of choosing image or text according to the target application.
 - Switch automatic updates to the current GitHub Releases repository and publish signed updater artifacts for Windows x64/ARM64 and macOS Intel/Apple Silicon.
 - Respect the Windows system HTTP proxy when checking and downloading updates.
+- Add System, Direct, and Custom update-proxy modes with a validated custom proxy URL.
+- Restore an About-page link to the current GitHub repository.
+- Refresh the application icon while preserving the original white P mark, and add branded NSIS header/sidebar artwork plus installer icons.
 
 ### 🐛 Bug Fixes
 

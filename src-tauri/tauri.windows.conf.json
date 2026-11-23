@@ -4,9 +4,14 @@
       "digestAlgorithm": "sha256",
       "nsis": {
         "displayLanguageSelector": true,
+        "headerImage": "nsis/header.bmp",
         "installerHooks": "nsis/installer-hooks.nsh",
+        "installerIcon": "icons/icon.ico",
         "installMode": "perMachine",
-        "languages": ["English", "SimpChinese"]
+        "languages": ["English", "SimpChinese"],
+        "sidebarImage": "nsis/sidebar.bmp",
+        "uninstallerHeaderImage": "nsis/header.bmp",
+        "uninstallerIcon": "icons/icon.ico"
       }
     }
   },

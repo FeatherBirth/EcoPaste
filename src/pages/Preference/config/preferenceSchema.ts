@@ -916,6 +916,35 @@ export const preferenceTabs: PreferenceTab[] = [
               return settings.update.frequency;
             },
           },
+          {
+            control: {
+              options: [
+                { value: "system" },
+                { value: "direct" },
+                { value: "custom" },
+              ],
+              type: "segmented",
+            },
+            id: "updates.proxyMode",
+            keywords: ["proxy", "network", "update"],
+            path: ["update", "proxyMode"],
+            value: (settings) => {
+              return settings.update.proxyMode;
+            },
+          },
+          {
+            control: { type: "text" },
+            disabledWhen: (settings) => {
+              return settings.update.proxyMode !== "custom";
+            },
+            id: "updates.proxyUrl",
+            keywords: ["proxy", "network", "update", "http"],
+            parentId: "updates.proxyMode",
+            path: ["update", "proxyUrl"],
+            value: (settings) => {
+              return settings.update.proxyUrl;
+            },
+          },
         ],
       },
     ],
@@ -931,6 +960,11 @@ export const preferenceTabs: PreferenceTab[] = [
             control: { type: "action" },
             id: "about.checkUpdates",
             keywords: ["update", "version"],
+          },
+          {
+            control: { type: "action" },
+            id: "about.github",
+            keywords: ["github", "source", "repository"],
           },
         ],
       },

@@ -7,7 +7,7 @@ use tauri_plugin_updater::{Update as TauriUpdate, UpdaterExt};
 use url::Url;
 
 use crate::core::{AppError, Result};
-use crate::settings::{SettingsStore, Update as UpdateSettings, UpdateFrequency};
+use crate::settings::{SettingsStore, Update as UpdateSettings, UpdateFrequency, UpdateProxyMode};
 
 const UPDATE_PROGRESS_EVENT: &str = "update://progress";
 const STABLE_ENDPOINT_ENV: &str = "ECOPASTE_UPDATE_ENDPOINT";
@@ -165,9 +165,9 @@ pub async fn check(app: &AppHandle, mode: CheckMode) -> Result<AppUpdateStatus> 
         .updater_builder()
         .endpoints(endpoints)
         .context("failed to configure update endpoints")?;
-    if let Some(proxy) = system_proxy_url() {
+    if let Some(proxy) = update_proxy(&settings.update) {
         log::debug!(
-            "updater using system proxy {}",
+            "updater using configured proxy {}",
             proxy.host_str().unwrap_or("")
         );
         builder = builder.proxy(proxy);
@@ -323,6 +323,20 @@ fn parse_endpoint(endpoint: &str) -> Result<Url> {
         .map_err(|err| AppError::Other(anyhow::anyhow!("update endpoint is invalid: {err}")))
 }
 
+fn update_proxy(settings: &UpdateSettings) -> Option<url::Url> {
+    match settings.proxy_mode {
+        UpdateProxyMode::System => system_proxy_url(),
+        UpdateProxyMode::Direct => None,
+        UpdateProxyMode::Custom => {
+            let proxy = normalize_proxy_url(&settings.proxy_url);
+            if proxy.is_none() {
+                log::warn!("custom updater proxy is invalid; falling back to direct connection");
+            }
+            proxy
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn system_proxy_url() -> Option<url::Url> {
     use windows_registry::CURRENT_USER;
@@ -470,6 +484,8 @@ mod tests {
         UpdateSettings {
             auto_check,
             frequency,
+            proxy_mode: UpdateProxyMode::System,
+            proxy_url: String::new(),
             last_checked_at,
             skipped_version: None,
         }
@@ -555,5 +571,19 @@ mod tests {
             "http://127.0.0.1:7891/"
         );
         assert_eq!(parse_windows_proxy_server("  "), None);
+    }
+
+    #[test]
+    fn custom_proxy_mode_takes_precedence_over_system_detection() {
+        let mut settings = update_settings(true, UpdateFrequency::Daily, None);
+        settings.proxy_mode = UpdateProxyMode::Custom;
+        settings.proxy_url = "http://127.0.0.1:8080".to_owned();
+        assert_eq!(
+            update_proxy(&settings).unwrap().as_str(),
+            "http://127.0.0.1:8080/"
+        );
+
+        settings.proxy_mode = UpdateProxyMode::Direct;
+        assert!(update_proxy(&settings).is_none());
     }
 }

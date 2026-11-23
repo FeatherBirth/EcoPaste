@@ -206,9 +206,13 @@ export interface Clipboard {
 export interface Update {
   autoCheck: boolean;
   frequency: UpdateFrequency;
+  proxyMode: UpdateProxyMode;
+  proxyUrl: string;
   lastCheckedAt: string | null;
   skippedVersion: string | null;
 }
+
+export type UpdateProxyMode = "system" | "direct" | "custom";
 
 export interface Settings {
   general: General;
