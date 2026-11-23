@@ -1,0 +1,30 @@
+{
+  "id": "clipboard-preview-multiselect-image-repair",
+  "name": "clipboard-preview-multiselect-image-repair",
+  "title": "增强剪贴板预览、多选粘贴与图片修复",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-11-23",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-23-clipboard-preview-lifecycle-interactions",
+    "11-23-clipboard-multiselect-batch-paste",
+    "11-23-image-clipboard-format-repair"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
